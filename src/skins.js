@@ -21,8 +21,9 @@ const Skins = (() => {
   let unlocked = new Set(['neon']);
   let equipped = 'neon';
 
-  const ssGet = (k) => { try { return JSON.parse(sessionStorage.getItem(k) || 'null'); } catch (e) { return null; } };
-  const ssSet = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  // Guest skins live as long as the guest identity (12 hours); account.js clears them.
+  const ssGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+  const ssSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
   function persist() {
     if (Account.state.kind === 'account') {
@@ -43,6 +44,7 @@ const Skins = (() => {
       before.forEach((s) => FREE.includes(s) && unlocked.add(s));
       equipped = unlocked.has(st.profile.skin) ? st.profile.skin : 'neon';
       if (unlocked.size > st.profile.unlocked_skins.length) persist();
+      try { localStorage.removeItem(GUEST_KEY); } catch (e) {}
     } else if (st.kind === 'guest') {
       unlocked = new Set(['neon', ...((guestSaved && guestSaved.unlocked) || []).filter((s) => FREE.includes(s))]);
       equipped = guestSaved && unlocked.has(guestSaved.equipped) ? guestSaved.equipped : 'neon';
@@ -111,7 +113,7 @@ const Skins = (() => {
     }
     note.textContent = Account.state.kind === 'account'
       ? 'Your skins are saved to your account.'
-      : 'Guest skins disappear when you close the game. Create an account to keep them forever.';
+      : 'Guest skins last 12 hours. Create an account to keep them forever.';
   }
 
   panel.querySelector('.lb-close').addEventListener('click', () => { panel.hidden = true; });

@@ -6,15 +6,27 @@ const Account = (() => {
   // is derived from the username. It is never shown or emailed. Do not change it,
   // or existing players will no longer be able to log in.
   const ACCOUNT_DOMAIN = 'players.brick-smasher-liart.vercel.app';
-  const GUEST_KEY = 'bs-guest-name';
+  const GUEST_KEY = 'bs-guest';             // { name, expires } in localStorage
+  const GUEST_SKINS_KEY = 'bs-guest-skins'; // shared with skins.js
+  const GUEST_TTL_MS = 12 * 60 * 60 * 1000; // a guest identity lasts 12 hours
 
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   const state = { kind: null, name: null, profile: null }; // kind: 'guest' | 'account' | null
   const listeners = [];
   const emit = () => listeners.forEach((fn) => fn(state));
 
-  const ssGet = (k) => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
-  const ssSet = (k, v) => { try { v === null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} };
+  const lsRemove = (...keys) => { try { keys.forEach((k) => localStorage.removeItem(k)); } catch (e) {} };
+
+  // Saved guest, or null if there is none or its 12 hours are up.
+  function savedGuest() {
+    let g = null;
+    try { g = JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { g = null; }
+    if (!g || typeof g.name !== 'string' || !(g.expires > Date.now())) {
+      if (g) lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
+      return null;
+    }
+    return g;
+  }
 
   const emailFor = (u) => `${u.toLowerCase()}@${ACCOUNT_DOMAIN}`;
   const validUsername = (u) => /^[A-Za-z0-9_]{3,12}$/.test(u);
@@ -32,7 +44,7 @@ const Account = (() => {
     state.kind = 'account';
     state.name = data.username;
     state.profile = data;
-    ssSet(GUEST_KEY, null);
+    try { localStorage.removeItem(GUEST_KEY); } catch (e) {}
   }
 
   async function init() {
@@ -40,8 +52,8 @@ const Account = (() => {
       const { data } = await client.auth.getSession();
       if (data.session) { await loadProfile(data.session.user); emit(); return; }
     } catch (e) { /* offline or expired session: fall back to guest */ }
-    const g = ssGet(GUEST_KEY);
-    if (g) { state.kind = 'guest'; state.name = g; }
+    const g = savedGuest();
+    if (g) { state.kind = 'guest'; state.name = g.name; state.expires = g.expires; }
     emit();
   }
 
@@ -49,8 +61,12 @@ const Account = (() => {
     const name = cleanGuest(raw);
     if (!name) throw new Error('Pick a name (letters, numbers, spaces, _ . -).');
     if (await nameTaken(name).catch(() => false)) throw new Error('That name belongs to a registered player. Try another.');
-    ssSet(GUEST_KEY, name);
-    state.kind = 'guest'; state.name = name; state.profile = null;
+    // Renaming an unexpired guest keeps its clock and skins; otherwise start a new 12 hours.
+    const prev = savedGuest();
+    const expires = prev ? prev.expires : Date.now() + GUEST_TTL_MS;
+    if (!prev) lsRemove(GUEST_SKINS_KEY);
+    try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name, expires })); } catch (e) {}
+    state.kind = 'guest'; state.name = name; state.profile = null; state.expires = expires;
     emit();
   }
 
@@ -160,9 +176,21 @@ const Account = (() => {
   });
   document.getElementById('switch-acct').addEventListener('click', () => { close(); });
 
+  // Called regularly by the game: ends a guest identity once its 12 hours are up.
+  function checkGuestExpiry() {
+    if (state.kind === 'guest' && !(state.expires > Date.now())) {
+      lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
+      state.kind = null; state.name = null; state.expires = null;
+      emit();
+      return true;
+    }
+    return false;
+  }
+
   return {
     client,
     state,
+    checkGuestExpiry,
     init,
     open,
     close,

@@ -40,7 +40,7 @@ Scores are stored in the `brick-smasher` Supabase project (table `public.scores`
 
 ## Players
 
-- **Guests** pick a temporary name that lasts until the game tab is closed. Guest scores appear on the 24-hour board only, and guest skins are lost on exit.
+- **Guests** pick a temporary name that is kept for 12 hours from when it was created, even if they close the game and come back. A run in progress is never saved. Guest scores appear on the 24-hour board only, and guest skins expire with the guest name.
 - **Accounts** (username + password, no email) rank on the all-time board and keep their skins. Profiles live in `public.profiles`, created by a trigger on sign-up. Sign-up goes through the `signup` Supabase edge function, which creates the account already confirmed (no email is ever sent), then the game logs the player in.
 
 ## Skins

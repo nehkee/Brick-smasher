@@ -486,7 +486,11 @@
     S.shake = Math.max(0, S.shake - 40 * dt);
     if (S.toast) { S.toast.t -= realDt; if (S.toast.t <= 0) S.toast = null; }
 
-    if (S.mode !== 'play') return;
+    if (S.mode !== 'play') {
+      // A guest's 12 hours can run out while the game is open; ask for a new name.
+      if (Account.checkGuestExpiry() && !Account.isOpen()) Account.open({ required: true });
+      return;
+    }
 
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
 
@@ -910,6 +914,11 @@
     S.buttons.push({ x, y: y + S.btnOffset, w, h: 34, action: 'mute' });
   }
 
+  function guestTimeLeft(expires) {
+    const mins = Math.max(0, Math.ceil((expires - Date.now()) / 60000));
+    return mins >= 60 ? `${Math.ceil(mins / 60)}H` : `${mins}M`;
+  }
+
   function drawMenu() {
     for (let i = 0; i < 14; i++) {
       const x = ((i * 97) % (W - 60)) + 10;
@@ -930,8 +939,8 @@
     // Who's playing
     const st = Account.state;
     const who = st.kind === 'account' ? `PLAYING AS ${st.name.toUpperCase()}`
-      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST` : 'TAP TO CHOOSE A NAME';
-    const whoW = 300;
+      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST · ${guestTimeLeft(st.expires)} LEFT` : 'TAP TO CHOOSE A NAME';
+    const whoW = 420;
     rr(W / 2 - whoW / 2, 236, whoW, 34, 17);
     ctx.fillStyle = S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
     ctx.fill();
