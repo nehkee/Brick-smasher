@@ -59,15 +59,17 @@ const Account = (() => {
     if (!validUsername(username)) throw new Error('Username: 3 to 12 letters, numbers or _');
     if (password.length < 6) throw new Error('Password must be at least 6 characters.');
     if (await nameTaken(username)) throw new Error('That username is taken.');
-    // Only sign up when the project creates accounts instantly (no confirmation email).
-    const cfg = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } })
-      .then((r) => r.json()).catch(() => ({}));
-    if (!cfg.mailer_autoconfirm) throw new Error('Accounts open very soon. Play as a guest for now!');
-    const { data, error } = await client.auth.signUp({ email: emailFor(username), password, options: { data: { username } } });
-    if (error) throw new Error(/already|registered|exists/i.test(error.message) ? 'That username is taken.' : error.message);
-    if (!data.session) throw new Error('Sign-ups are temporarily unavailable. Play as a guest for now.');
-    await loadProfile(data.user);
-    emit();
+    // Accounts are created by the `signup` edge function (confirmed instantly,
+    // no email sent), then the player is logged straight in.
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).catch(() => null);
+    if (!res) throw new Error('Could not reach the server. Check your connection.');
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error || 'Could not create account. Try again.');
+    await logIn(username, password);
   }
 
   async function logIn(username, password) {
