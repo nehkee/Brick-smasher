@@ -31,21 +31,25 @@
 
   <!-- Leaderboard -->
   <div id="panel" class="lb" hidden>
-    <div class="lb-card" role="dialog" aria-labelledby="lb-title">
+    <div class="lb-card board-card" role="dialog" aria-labelledby="lb-title">
       <button class="lb-close" aria-label="Close">&times;</button>
-      <h2 id="lb-title">LEADERBOARD</h2>
-      <div class="lb-tabs" role="tablist">
+      <h2 id="lb-title"><span class="trophy" aria-hidden="true">🏆</span> LEADERBOARD</h2>
+      <div class="seg" role="tablist">
         <button data-board="alltime" role="tab">ALL-TIME</button>
         <button data-board="today" role="tab">TODAY</button>
       </div>
-      <div class="lb-tabs small" role="tablist">
+      <div class="lb-tabs small diff-tabs" role="tablist">
         <button data-diff="easy" role="tab">EASY</button>
         <button data-diff="normal" role="tab">NORMAL</button>
         <button data-diff="hard" role="tab">HARD</button>
         <button data-diff="berserk" role="tab">BERSERK</button>
       </div>
-      <p id="lb-status"></p>
-      <ol id="lb-list"></ol>
+      <div class="board-scroll">
+        <div id="lb-podium"></div>
+        <p id="lb-status"></p>
+        <ol id="lb-list"></ol>
+      </div>
+      <div id="lb-me" hidden></div>
     </div>
   </div>
 
