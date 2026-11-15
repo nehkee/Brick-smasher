@@ -36,7 +36,9 @@ Catch green capsules and dodge red ones.
 Scores are stored in the `brick-smasher` Supabase project (table `public.scores`). The browser can't touch the table directly; it can only call two database functions:
 
 - `submit_score(name, score, level, difficulty)`: validates the nickname, difficulty and a plausible score for the level, then returns the player's rank
-- `get_leaderboard(difficulty, limit)`: top scores for one difficulty
+- `get_leaderboard(difficulty, board, limit)`: top scores for one difficulty, all-time (accounts) or today (everyone)
+
+Guests send a random guest id so two guests with the same name stay separate. Each player can post at most 6 scores a minute.
 
 ## Players
 
@@ -63,6 +65,7 @@ src/main.js    game loop, physics, rendering, input
 src/levels.js  level layouts (edit to add levels)
 src/audio.js   synthesized sound effects
 src/leaderboard.js  online leaderboard client and panel
+src/vendor/supabase.js  self-hosted @supabase/supabase-js 2.45.4
 src/account.js guest names, accounts (Supabase Auth)
 src/skins.js   cosmetic skins and skins panel
 src/style.css

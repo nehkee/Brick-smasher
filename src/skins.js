@@ -117,7 +117,9 @@ const Skins = (() => {
   }
 
   panel.querySelector('.lb-close').addEventListener('click', () => { panel.hidden = true; });
-  panel.addEventListener('click', (e) => { if (e.target === panel) panel.hidden = true; });
+  let downOnBackdrop = false;
+  panel.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === panel; });
+  panel.addEventListener('click', (e) => { if (e.target === panel && downOnBackdrop) panel.hidden = true; });
 
   return {
     list: LIST,

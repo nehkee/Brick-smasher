@@ -17,7 +17,10 @@ const Leaderboard = (() => {
   }
 
   function submit(score, level, difficulty) {
-    return rpc('submit_score', { p_name: Account.state.name || '', p_score: score, p_level: level, p_difficulty: difficulty });
+    return rpc('submit_score', {
+      p_name: Account.state.name || '', p_score: score, p_level: level, p_difficulty: difficulty,
+      p_guest_id: Account.state.kind === 'guest' ? Account.state.guestId : null,
+    });
   }
 
   async function show() {
@@ -60,7 +63,10 @@ const Leaderboard = (() => {
   diffTabs.forEach((t) => t.addEventListener('click', () => { diff = t.dataset.diff; show(); }));
   boardTabs.forEach((t) => t.addEventListener('click', () => { board = t.dataset.board; show(); }));
   panel.querySelector('.lb-close').addEventListener('click', close);
-  panel.addEventListener('click', (e) => { if (e.target === panel) close(); });
+  // Close on a backdrop tap only if the press also started on the backdrop.
+  let downOnBackdrop = false;
+  panel.addEventListener('pointerdown', (e) => { downOnBackdrop = e.target === panel; });
+  panel.addEventListener('click', (e) => { if (e.target === panel && downOnBackdrop) close(); });
 
   return { open, close, submit, isOpen: () => !panel.hidden };
 })();

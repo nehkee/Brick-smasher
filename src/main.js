@@ -62,7 +62,9 @@
   // tablets, desktops) the background fills the space beside the field.
   let VW = W, VH = H; // whole screen in game units
   let OX = 0, OY = 0; // where the field starts on screen, in game units
+  let onFieldResize = null; // set once game state exists
   function resize() {
+    const oldH = H;
     const iw = Math.max(1, window.innerWidth), ih = Math.max(1, window.innerHeight);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     H = Math.round(Math.max(800, Math.min(1400, W * (ih / iw))));
@@ -74,6 +76,7 @@
     canvas.style.height = `${ih}px`;
     canvas.width = Math.round(iw * dpr);
     canvas.height = Math.round(ih * dpr);
+    if (onFieldResize && oldH !== H) onFieldResize(oldH, H);
   }
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 100));
@@ -155,7 +158,41 @@
       if (/^M+$/.test(half.replace(/\./g, '')) && !half.includes('.')) half = half.slice(0, 2) + '.' + half.slice(3);
       out.push(half + [...half].reverse().join(''));
     }
-    return { name: ENDLESS_NAMES[Math.floor(r() * ENDLESS_NAMES.length)], rows: out };
+    return { name: ENDLESS_NAMES[Math.floor(r() * ENDLESS_NAMES.length)], rows: openEnclosures(out) };
+  }
+
+  // Metal can't be broken, and the ball can't squeeze between bricks. Any
+  // breakable brick walled in by metal would make the level impossible, so turn
+  // the enclosing metal into normal bricks until every brick can be reached.
+  function openEnclosures(rows) {
+    const g = rows.map((r) => [...r]);
+    const R = g.length, C = 10;
+    for (;;) {
+      const seen = g.map((r) => r.map(() => false));
+      const stack = [];
+      for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+        if ((r === 0 || r === R - 1 || c === 0 || c === C - 1) && g[r][c] !== 'M') { seen[r][c] = true; stack.push([r, c]); }
+      }
+      while (stack.length) {
+        const [r, c] = stack.pop();
+        for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nr >= R || nc < 0 || nc >= C || seen[nr][nc] || g[nr][nc] === 'M') continue;
+          seen[nr][nc] = true;
+          stack.push([nr, nc]);
+        }
+      }
+      const fix = [];
+      for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+        if (g[r][c] === 'M' || seen[r][c] || g[r][c] === '.') continue;
+        for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < R && nc >= 0 && nc < C && g[nr][nc] === 'M') fix.push([nr, nc]);
+        }
+      }
+      if (!fix.length) return g.map((r) => r.join(''));
+      for (const [r, c] of fix) g[r][c] = '2';
+    }
   }
   function getLevel(i) { return i < LEVELS.length ? LEVELS[i] : generateLevel(i); }
   const isEndless = (i) => i >= LEVELS.length;
@@ -272,6 +309,7 @@
   function submitRun() {
     const run = S.runId;
     S.rankState = 'sending';
+    S.postedName = Account.state.name;
     Leaderboard.submit(S.score, S.level + 1, S.diff)
       .then((res) => { if (S.runId === run) { S.rank = res; S.rankState = 'done'; } })
       .catch((e) => { if (S.runId === run) { S.rankState = 'error'; S.rankError = e.message || ''; } });
@@ -292,9 +330,28 @@
   }
 
   function requireIdentity(fn) {
-    if (Account.state.kind) fn();
-    else Account.open({ required: true, then: fn });
+    if (Account.state.kind) { fn(); return; }
+    // A guest name may still be on its way (first visit, or a guest just expired).
+    Account.whenReady().then(() => {
+      if (Account.state.kind) fn();
+      else Account.open({ required: true, then: fn });
+    });
   }
+
+  // The field height changed mid-run (phone rotated, window resized): move
+  // everything in play so nothing is lost, and pause so the player can settle.
+  onFieldResize = (oldH, newH) => {
+    if (S.mode === 'menu' || S.mode === 'over' || S.mode === 'win') return;
+    const map = (y) => HUD_H + ((y - HUD_H) * (newH - HUD_H)) / (oldH - HUD_H);
+    for (const b of S.balls) {
+      if (b.stuck) b.y = PADDLE_Y - BALL_R - 1;
+      else b.y = Math.min(map(b.y), PADDLE_Y - BALL_R - 1);
+      b.trail.length = 0;
+    }
+    for (const c of S.capsules) c.y = map(c.y);
+    for (const l of S.lasers) l.y = map(l.y);
+    if (S.mode === 'play') setMode('paused');
+  };
 
   function gameOver(won) {
     recordHigh();
@@ -502,7 +559,7 @@
     if (S.mode !== 'play') {
       // A guest's 12 hours can run out while the game is open; ask for a new name.
       if (Account.checkGuestExpiry()) {
-        Account.startAutoGuest().then(() => {
+        Account.whenReady().then(() => {
           S.toast = { text: 'GUEST TIME IS UP', sub: `YOU'RE NOW ${String(Account.state.name).toUpperCase()} · SIGN UP NEXT TIME TO KEEP YOUR SKINS`, t: 6, color: '#ffb319' };
         });
       }
@@ -556,14 +613,18 @@
       }
     }
     for (const l of S.lasers) {
+      const prevY = l.y;
       l.y -= 820 * dt;
       if (l.y < HUD_H) { l.dead = true; continue; }
+      // Check the whole distance travelled this frame, so lasers can't skip bricks.
+      let hit = null;
       for (const br of S.bricks) {
-        if (br.alive && l.x >= br.x && l.x <= br.x + br.w && l.y >= br.y && l.y <= br.y + br.h) {
-          hitBrick(br, false);
-          l.dead = true;
-          break;
-        }
+        if (br.alive && l.x >= br.x && l.x <= br.x + br.w && l.y <= br.y + br.h && prevY >= br.y &&
+            (!hit || br.y > hit.y)) hit = br;
+      }
+      if (hit) {
+        hitBrick(hit, false);
+        l.dead = true;
       }
     }
     S.lasers = S.lasers.filter((l) => !l.dead);
@@ -1058,7 +1119,7 @@
         if (Account.expiringSoon()) {
           text(`SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'} · GUEST EXPIRES IN ${guestTimeLeft(Account.state.expires)}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
         } else {
-          text(`POSTED AS ${String(Account.state.name).toUpperCase()} · SIGN UP TO RANK ALL-TIME`, W / 2, y + 16, 10, '#ff3df2', 'center', 600);
+          text(`POSTED AS ${String(S.postedName).toUpperCase()} · SIGN UP TO RANK ALL-TIME`, W / 2, y + 16, 10, '#ff3df2', 'center', 600);
         }
       } else {
         glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y, 15, DIFFS[S.diff].color, 10);
@@ -1163,6 +1224,9 @@
     if (S.mode === 'play') launch();
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  // Stop the browser's follow-up "click" after a tap: panels open on pointerup,
+  // and that click would otherwise land on (and close or press) the new panel.
+  canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
 
   function primaryAction() {
     switch (S.mode) {
@@ -1170,7 +1234,7 @@
       case 'play': launch(); break;
       case 'paused': setMode('play'); break;
       case 'clear': if (S.modeTime > 0.6) loadLevel(S.level + 1); break;
-      case 'over': case 'win': if (S.modeTime > 0.5) startGame(S.diff); break;
+      case 'over': case 'win': if (S.modeTime > 0.5) requireIdentity(() => startGame(S.diff)); break;
     }
   }
 
@@ -1193,7 +1257,7 @@
     else if (S.mode === 'menu') {
       if (k === 'ArrowUp' || k === 'w' || k === 'W') { S.menuSel = (S.menuSel + 2) % 3; S.hoverAction = null; e.preventDefault(); }
       else if (k === 'ArrowDown' || k === 's' || k === 'S') { S.menuSel = (S.menuSel + 1) % 3; S.hoverAction = null; e.preventDefault(); }
-      else if (k === '1' || k === '2' || k === '3') startGame(DIFF_KEYS[Number(k) - 1]);
+      else if (k === '1' || k === '2' || k === '3') requireIdentity(() => startGame(DIFF_KEYS[Number(k) - 1]));
     }
   });
   window.addEventListener('keyup', (e) => {

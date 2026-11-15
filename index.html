@@ -8,6 +8,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Brick Smasher</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070818'/%3E%3Crect x='8' y='12' width='22' height='9' rx='2' fill='%23ff3df2'/%3E%3Crect x='34' y='12' width='22' height='9' rx='2' fill='%2329f0ff'/%3E%3Crect x='8' y='25' width='22' height='9' rx='2' fill='%2329f0ff'/%3E%3Crect x='34' y='25' width='22' height='9' rx='2' fill='%23ffb319'/%3E%3Ccircle cx='32' cy='44' r='4' fill='%23fff'/%3E%3Crect x='18' y='52' width='28' height='5' rx='2.5' fill='%2329f0ff'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Brick Smasher">
+  <meta property="og:description" content="2 tries. No saves. How far can you go? A neon brick-breaker with power-ups, endless levels and a live leaderboard.">
+  <meta property="og:url" content="https://brick-smasher-liart.vercel.app/">
+  <meta property="og:image" content="https://brick-smasher-liart.vercel.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Brick Smasher">
+  <meta name="twitter:description" content="2 tries. No saves. How far can you go?">
+  <meta name="twitter:image" content="https://brick-smasher-liart.vercel.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
@@ -85,7 +98,7 @@
 
   <script src="src/levels.js"></script>
   <script src="src/audio.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="src/vendor/supabase.js"></script> <!-- @supabase/supabase-js 2.45.4, self-hosted -->
   <script src="src/account.js"></script>
   <script src="src/skins.js"></script>
   <script src="src/leaderboard.js"></script>

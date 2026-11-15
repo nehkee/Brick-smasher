@@ -1,4 +1,4 @@
-// Player identity: temporary guests (this browser tab only) or permanent accounts.
+// Player identity: temporary guests (kept 12 hours on this device) or permanent accounts.
 const Account = (() => {
   const SUPABASE_URL = 'https://odgnmpicwhyewxhclpxf.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_h9y66CNjIxsakkBqSdl1Mg_5ivEitHT';
@@ -6,16 +6,36 @@ const Account = (() => {
   // is derived from the username. It is never shown or emailed. Do not change it,
   // or existing players will no longer be able to log in.
   const ACCOUNT_DOMAIN = 'players.brick-smasher-liart.vercel.app';
-  const GUEST_KEY = 'bs-guest';             // { name, expires } in localStorage
+  const GUEST_KEY = 'bs-guest';             // { name, expires, id } in localStorage
   const GUEST_SKINS_KEY = 'bs-guest-skins'; // shared with skins.js
   const GUEST_TTL_MS = 12 * 60 * 60 * 1000; // a guest identity lasts 12 hours
 
-  const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  const state = { kind: null, name: null, profile: null }; // kind: 'guest' | 'account' | null
+  // If the Supabase library failed to load, keep the game playable offline:
+  // guests still work; leaderboard and account calls fail with a friendly message.
+  const OFFLINE = { data: null, error: { message: 'Offline: online features are unavailable right now.' } };
+  const offlineClient = {
+    rpc: async () => OFFLINE,
+    from: () => ({ select: () => ({ eq: () => ({ single: async () => OFFLINE }) }) }),
+    auth: {
+      getSession: async () => ({ data: { session: null } }),
+      signInWithPassword: async () => OFFLINE,
+      signOut: async () => ({}),
+    },
+  };
+  const client = typeof supabase !== 'undefined' ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : offlineClient;
+  const state = { kind: null, name: null, profile: null, guestId: null }; // kind: 'guest' | 'account' | null
+  let pending = Promise.resolve(); // settles when an in-progress identity change is done
   const listeners = [];
   const emit = () => listeners.forEach((fn) => fn(state));
 
   const lsRemove = (...keys) => { try { keys.forEach((k) => localStorage.removeItem(k)); } catch (e) {} };
+
+  // Random id that keeps two guests with the same name apart on the leaderboard.
+  function newGuestId() {
+    const a = new Uint8Array(12);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    return [...a].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
 
   // Saved guest, or null if there is none or its 12 hours are up.
   function savedGuest() {
@@ -24,6 +44,10 @@ const Account = (() => {
     if (!g || typeof g.name !== 'string' || !(g.expires > Date.now())) {
       if (g) lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
       return null;
+    }
+    if (!/^[a-z0-9]{16,40}$/.test(g.id || '')) {
+      g.id = newGuestId();
+      try { localStorage.setItem(GUEST_KEY, JSON.stringify(g)); } catch (e) {}
     }
     return g;
   }
@@ -47,18 +71,26 @@ const Account = (() => {
     try { localStorage.removeItem(GUEST_KEY); } catch (e) {}
   }
 
-  async function init() {
+  function init() {
+    pending = initIdentity();
+    return pending;
+  }
+  async function initIdentity() {
     try {
       const { data } = await client.auth.getSession();
       if (data.session) { await loadProfile(data.session.user); emit(); return; }
     } catch (e) { /* offline or expired session: fall back to guest */ }
     const g = savedGuest();
-    if (g) { state.kind = 'guest'; state.name = g.name; state.expires = g.expires; emit(); return; }
-    await startAutoGuest(); // new visitors play instantly under a generated name
+    if (g) { state.kind = 'guest'; state.name = g.name; state.expires = g.expires; state.guestId = g.id; emit(); return; }
+    await autoGuest(); // new visitors play instantly under a generated name
   }
 
   // Give the player a fun guest name without asking (they can change it later).
-  async function startAutoGuest() {
+  function startAutoGuest() {
+    pending = autoGuest();
+    return pending;
+  }
+  async function autoGuest() {
     for (let i = 0; i < 3; i++) {
       try { await playAsGuest(suggestName()); return; } catch (e) { /* name clash: try another */ }
     }
@@ -75,9 +107,10 @@ const Account = (() => {
     // Renaming an unexpired guest keeps its clock and skins; otherwise start a new 12 hours.
     const prev = savedGuest();
     const expires = prev ? prev.expires : Date.now() + GUEST_TTL_MS;
+    const id = prev ? prev.id : newGuestId();
     if (!prev) lsRemove(GUEST_SKINS_KEY);
-    try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name, expires })); } catch (e) {}
-    state.kind = 'guest'; state.name = name; state.profile = null; state.expires = expires;
+    try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name, expires, id })); } catch (e) {}
+    state.kind = 'guest'; state.name = name; state.profile = null; state.expires = expires; state.guestId = id;
     emit();
   }
 
@@ -191,18 +224,21 @@ const Account = (() => {
   function checkGuestExpiry() {
     if (state.kind === 'guest' && !(state.expires > Date.now())) {
       lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
-      state.kind = null; state.name = null; state.expires = null;
+      state.kind = null; state.name = null; state.expires = null; state.guestId = null;
       emit();
+      startAutoGuest(); // straight into a fresh guest identity
       return true;
     }
     return false;
   }
+
 
   return {
     client,
     state,
     checkGuestExpiry,
     startAutoGuest,
+    whenReady: () => pending,
     expiringSoon: () => guestMsLeft() < WARN_MS,
     init,
     open,
