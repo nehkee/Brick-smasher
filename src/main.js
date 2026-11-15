@@ -505,10 +505,16 @@
       S.balls.push(...extra);
       return;
     }
+    // Shrink on a bigger paddle (Wide or Mega) just brings it back to normal size.
+    if (type === 'shrink' && (S.effects.wide || S.effects.mega)) {
+      delete S.effects.wide;
+      delete S.effects.mega;
+      return;
+    }
     S.effects[type] = p.dur;
     if (OPPOSITE[type]) delete S.effects[OPPOSITE[type]];
-    if (type === 'mega') delete S.effects.shrink;
-    if (type === 'shrink') delete S.effects.mega;
+    if (type === 'mega') { delete S.effects.shrink; delete S.effects.wide; }
+    if (type === 'wide') delete S.effects.mega;
   }
 
   // ---------- Physics ----------
