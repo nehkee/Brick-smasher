@@ -1310,8 +1310,8 @@
     }
     dim(0.45);
     const pulse = 18 + 8 * Math.sin(S.time * 2.5);
-    glowText('BRICK', W / 2, 104, 62, '#29f0ff', pulse);
-    glowText('SMASHER', W / 2, 166, 48, '#ff3df2', pulse);
+    glowText('BRICK', W / 2, 92, 62, '#29f0ff', pulse);
+    glowText('SMASHER', W / 2, 154, 48, '#ff3df2', pulse);
 
     // Who's playing (tap to sign up / manage account)
     const st = Account.state;
@@ -1329,32 +1329,32 @@
     const pillX = W / 2 - rowW / 2;
     if (ctaW) {
       const cx = pillX + whoW + 8;
-      rr(cx, 204, ctaW, 32, 16);
+      rr(cx, 192, ctaW, 32, 16);
       ctx.fillStyle = S.hoverAction === 'signup' ? '#3dff8a' : 'rgba(61,255,138,0.18)';
       ctx.fill();
       ctx.strokeStyle = '#3dff8a'; ctx.lineWidth = 1.5;
       ctx.shadowColor = '#3dff8a'; ctx.shadowBlur = warn ? 14 : 6;
       ctx.stroke(); ctx.shadowBlur = 0;
-      text(ctaLabel, cx + ctaW / 2, 220, 11, S.hoverAction === 'signup' ? '#050614' : '#3dff8a', 'center', 700);
-      S.buttons.push({ x: cx, y: 204 + S.btnOffset, w: ctaW, h: 32, action: 'signup' });
+      text(ctaLabel, cx + ctaW / 2, 208, 11, S.hoverAction === 'signup' ? '#050614' : '#3dff8a', 'center', 700);
+      S.buttons.push({ x: cx, y: 192 + S.btnOffset, w: ctaW, h: 32, action: 'signup' });
     }
     ctx.save();
     ctx.translate(pillX + whoW / 2 - W / 2, 0); // pill sits left of the button
-    rr(W / 2 - whoW / 2, 204, whoW, 32, 16);
+    rr(W / 2 - whoW / 2, 192, whoW, 32, 16);
     ctx.fillStyle = warn ? `rgba(255,179,25,${0.12 + 0.08 * Math.sin(S.time * 4)})`
       : S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
     ctx.fill();
     ctx.strokeStyle = pillColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    text(who, W / 2, 220, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
+    text(who, W / 2, 208, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
     ctx.restore();
-    S.buttons.push({ x: pillX, y: 204 + S.btnOffset, w: whoW, h: 32, action: 'account' });
+    S.buttons.push({ x: pillX, y: 192 + S.btnOffset, w: whoW, h: 32, action: 'account' });
 
     const ch = Share.challenge;
     // Only shown when someone opened a friend's challenge link.
     if (ch) {
-      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 256, 12,
+      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 246, 12,
         DIFFS[ch.diff].color, 8 + 6 * Math.sin(S.time * 4));
     }
 
@@ -1363,7 +1363,7 @@
     const hrs = Math.max(1, Math.ceil(d.msLeft / 3600000));
     const dsub = d.done ? `DONE ✓ · NEW ONE IN ${hrs}H` : d.attemptsLeft <= 0 ? `NO ATTEMPTS LEFT · NEW ONE IN ${hrs}H`
       : `${d.mod.name} · ${d.attemptsLeft}/${d.attempts} ATTEMPTS`;
-    button(d.streak > 0 ? `DAILY · STREAK ${d.streak}` : 'DAILY CHALLENGE', W / 2 - 140, 276, 280, 58,
+    button(d.streak > 0 ? `DAILY · STREAK ${d.streak}` : 'DAILY CHALLENGE', W / 2 - 140, 268, 280, 60,
       d.done ? '#8f7d2e' : '#ffd700', 'daily', dsub, !d.done && d.attemptsLeft > 0 && Math.sin(S.time * 3) > 0.6);
 
     DIFF_KEYS.forEach((k, i) => {
@@ -1371,26 +1371,26 @@
       const best = highScores[k];
       const bonusTxt = dd.points > 1 ? `×${dd.points} POINTS` : '';
       const sub = [best > 0 ? `BEST ${best}` : (dd.timed ? dd.blurb : ''), bonusTxt].filter(Boolean).join(' · ') || null;
-      button(dd.label, W / 2 - 140, 346 + i * 62, 280, 52, dd.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
+      button(dd.label, W / 2 - 140, 350 + i * 72, 280, 56, dd.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    button('LEADERBOARD', W / 2 - 140, 602, 124, 44, '#ffe066', 'board');
-    button('MISSIONS', W / 2 - 8, 602, 78, 44, '#3dff8a', 'missions');
-    button('SKINS', W / 2 + 78, 602, 62, 44, '#ff3df2', 'skins');
+    button('LEADERBOARD', W / 2 - 140, 652, 124, 46, '#ffe066', 'board');
+    button('MISSIONS', W / 2 - 8, 652, 78, 46, '#3dff8a', 'missions');
+    button('SKINS', W / 2 + 78, 652, 62, 46, '#ff3df2', 'skins');
 
     // Player level (tap for missions)
     const lv = Progress.levelInfo();
-    text(`LV ${lv.level} · ${lv.title}`, W / 2 - 140, 670, 11, '#ffe066', 'left', 700);
-    text(`${lv.into}/${lv.need} XP`, W / 2 + 140, 670, 10, 'rgba(230,230,255,0.55)', 'right', 500);
-    rr(W / 2 - 140, 682, 280, 8, 4);
+    text(`LV ${lv.level} · ${lv.title}`, W / 2 - 140, 728, 11, '#ffe066', 'left', 700);
+    text(`${lv.into}/${lv.need} XP`, W / 2 + 140, 728, 10, 'rgba(230,230,255,0.55)', 'right', 500);
+    rr(W / 2 - 140, 740, 280, 8, 4);
     ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fill();
     if (lv.into > 0) {
-      rr(W / 2 - 140, 682, Math.max(8, 280 * lv.into / lv.need), 8, 4);
+      rr(W / 2 - 140, 740, Math.max(8, 280 * lv.into / lv.need), 8, 4);
       const xg = ctx.createLinearGradient(W / 2 - 140, 0, W / 2 + 140, 0);
       xg.addColorStop(0, '#29f0ff'); xg.addColorStop(1, '#3dff8a');
       ctx.fillStyle = xg; ctx.fill();
     }
-    S.buttons.push({ x: W / 2 - 150, y: 655 + S.btnOffset, w: 300, h: 45, action: 'missions' });
+    S.buttons.push({ x: W / 2 - 150, y: 713 + S.btnOffset, w: 300, h: 45, action: 'missions' });
   }
 
   // Gear icon (opens settings: music, sound, vibration)
