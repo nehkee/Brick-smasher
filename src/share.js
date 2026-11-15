@@ -4,8 +4,8 @@
 // Hard. Beat it!") that the friend sees when they open the game.
 const Share = (() => {
   const SITE = 'https://brick-smasher-liart.vercel.app/';
-  const DIFF_LABEL = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD' };
-  const DIFF_COLOR = { easy: '#3dff8a', normal: '#29f0ff', hard: '#ff3d6e' };
+  const DIFF_LABEL = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD', berserk: 'BERSERK' };
+  const DIFF_COLOR = { easy: '#3dff8a', normal: '#29f0ff', hard: '#ff3d6e', berserk: '#ff8a3d' };
 
   // ---------- Incoming challenge (?c=score&d=diff&n=name&l=level) ----------
   const challenge = (() => {

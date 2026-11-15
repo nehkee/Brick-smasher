@@ -1,7 +1,7 @@
 # Brick-smasher
 a brick smasher game that will go viral
 
-A neon arcade brick-breaker: 10 handmade levels, then endless generated levels, 11 power-ups, three difficulty settings and an online leaderboard. Every run gives you exactly 2 tries; lose both and you start over from level 1. Plain HTML5 canvas and JavaScript, with no build step and no dependencies.
+A neon arcade brick-breaker: 10 handmade levels, then endless generated levels, 11 power-ups, four modes (Easy, Normal, Hard and the timed Berserk) and an online leaderboard. Every run gives you exactly 2 tries; lose both and you start over from level 1. Plain HTML5 canvas and JavaScript, with no build step and no dependencies.
 
 ## Play
 
@@ -48,6 +48,10 @@ Guests send a random guest id so two guests with the same name stay separate. Ea
 ## Skins
 
 Six free skins are unlocked by playing (level 5, endless mode, 15-combo, level 20, 50,000 points). Three premium skins are shown with prices but can't be bought yet.
+
+## Berserk mode
+
+A timed mode with its own leaderboard: a fast ball and 2:00 per level. The clock starts when the ball is launched, stops while paused, ticks in the last 10 seconds, and running out costs a try (the clock refills and the bricks stay). Seconds left when a level is cleared are worth 50 points each.
 
 ## Endless mode
 

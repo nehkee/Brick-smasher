@@ -22,8 +22,13 @@
     easy:   { label: 'EASY',   speed: 0.85, bad: 0.2,  drop: 0.22, color: '#3dff8a', blurb: 'SLOWER BALL · FEWER TRAPS' },
     normal: { label: 'NORMAL', speed: 1.0,  bad: 0.33, drop: 0.18, color: '#29f0ff', blurb: 'THE CLASSIC CHALLENGE' },
     hard:   { label: 'HARD',   speed: 1.2,  bad: 0.45, drop: 0.15, color: '#ff3d6e', blurb: 'FAST BALL · MORE TRAPS' },
+    // Berserk: fast ball and a countdown on every level.
+    berserk: { label: 'BERSERK', speed: 1.15, bad: 0.35, drop: 0.2, color: '#ff8a3d', blurb: '2:00 PER LEVEL', timed: true },
   };
-  const DIFF_KEYS = ['easy', 'normal', 'hard'];
+  const DIFF_KEYS = ['easy', 'normal', 'hard', 'berserk'];
+  const LEVEL_TIME = 120; // seconds per level in Berserk
+  // Desktop-style device (mouse + keyboard): show keyboard hints only there.
+  const HAS_KEYBOARD = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   const POWER = {
     wide:    { label: 'W', name: 'WIDE PADDLE', good: true,  dur: 15 },
@@ -52,7 +57,7 @@
     catch (e) { return fallback; }
   }
   function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
-  const highScores = Object.assign({ easy: 0, normal: 0, hard: 0 }, load('bs-high', {}));
+  const highScores = Object.assign({ easy: 0, normal: 0, hard: 0, berserk: 0 }, load('bs-high', {}));
 
   // ---------- Canvas ----------
   const canvas = document.getElementById('game');
@@ -97,7 +102,11 @@
   // ---------- State ----------
   const S = {
     mode: 'menu',          // menu | play | paused | clear | over | win
-    menuSel: Share.challenge ? ['easy', 'normal', 'hard'].indexOf(Share.challenge.diff) : 1,
+    menuSel: Share.challenge ? ['easy', 'normal', 'hard', 'berserk'].indexOf(Share.challenge.diff) : 1,
+    timeLeft: 0,
+    clockRunning: false,
+    lastTick: 0,
+    timeBonus: 0,
     beatChallenge: false,
     diff: 'normal',
     level: 0,
@@ -253,6 +262,7 @@
     S.effects = {};
     S.combo = 0;
     S.clearTimer = 0;
+    S.timeLeft = LEVEL_TIME;
     S.lostThisLevel = false;
     S.lastLeftCall = 0;
     S.paddle.x = S.paddle.target = W / 2;
@@ -263,6 +273,7 @@
   }
 
   function resetBall() {
+    S.clockRunning = false; // the clock waits until the ball is launched
     S.balls = [{ x: S.paddle.x, y: PADDLE_Y - BALL_R - 1, vx: 0, vy: -1, stuck: true, offset: 0, boost: 1, trail: [] }];
   }
 
@@ -291,6 +302,7 @@
       b.stuck = false;
       any = true;
     }
+    if (any) S.clockRunning = true;
     if (any) Sound.launch();
   }
 
@@ -375,7 +387,8 @@
 
   function levelClear() {
     S.perfect = !S.lostThisLevel;
-    const bonus = 250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0);
+    S.timeBonus = DIFFS[S.diff].timed ? Math.ceil(Math.max(0, S.timeLeft)) * 50 : 0;
+    const bonus = 250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0) + S.timeBonus;
     S.score += bonus;
     S.clearBonus = bonus;
     S.capsules = []; S.lasers = [];
@@ -586,6 +599,19 @@
       S.clearTimer -= realDt;
       if (S.clearTimer <= 0) levelClear();
       return;
+    }
+
+    // Berserk countdown
+    if (DIFFS[S.diff].timed && S.clockRunning) {
+      S.timeLeft -= realDt;
+      const secs = Math.ceil(S.timeLeft);
+      if (secs <= 10 && secs > 0 && secs !== S.lastTick) { S.lastTick = secs; Sound.tick(); }
+      if (S.timeLeft <= 0) {
+        S.timeLeft = LEVEL_TIME;
+        loseLife();
+        if (S.mode === 'play') S.banner = { text: "TIME'S UP!", sub: S.lives === 1 ? 'LAST TRY!' : `${S.lives} TRIES LEFT`, t: 1.8, max: 1.8 };
+        return;
+      }
     }
 
     if (S.score >= 50000) tryUnlock('gold');
@@ -943,7 +969,19 @@
     text('SCORE', 20, 18, 10, 'rgba(230,230,255,0.55)', 'left', 500);
     glowText(String(S.score), 20, 40, 20, '#29f0ff', 8, 'left');
     text(isEndless(S.level) ? `ENDLESS · LEVEL ${S.level + 1}` : `LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, isEndless(S.level) ? '#ff3df2' : 'rgba(230,230,255,0.55)', 'center', 500);
-    text(DIFFS[S.diff].label, W / 2, 40, 14, DIFFS[S.diff].color);
+    if (DIFFS[S.diff].timed) {
+      const t = Math.max(0, Math.ceil(S.timeLeft));
+      const urgent = t <= 10 && S.clockRunning;
+      const clock = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+      const col = urgent ? (Math.floor(S.time * 4) % 2 ? '#ff3d3d' : '#ffffff') : DIFFS.berserk.color;
+      glowText(clock, W / 2, 40, 18, col, urgent ? 14 : 6);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(0, HUD_H - 3, W, 3);
+      ctx.fillStyle = urgent ? '#ff3d3d' : DIFFS.berserk.color;
+      ctx.fillRect(0, HUD_H - 3, W * Math.max(0, Math.min(1, S.timeLeft / LEVEL_TIME)), 3);
+    } else {
+      text(DIFFS[S.diff].label, W / 2, 40, 14, DIFFS[S.diff].color);
+    }
 
     for (let i = 0; i < Math.min(S.lives, 9); i++) {
       const x = W - 70 - i * 18;
@@ -1023,7 +1061,7 @@
     }
     if (S.balls.some((ball) => ball.stuck)) {
       ctx.globalAlpha = 0.55 + 0.35 * Math.sin(S.time * 5);
-      text('TAP / CLICK / SPACE TO LAUNCH', W / 2, H * 0.58 + 105, 12, 'rgba(230,230,255,0.9)', 'center', 500);
+      text(HAS_KEYBOARD ? 'CLICK OR SPACE TO LAUNCH' : 'TAP TO LAUNCH', W / 2, H * 0.58 + 105, 12, 'rgba(230,230,255,0.9)', 'center', 500);
       ctx.globalAlpha = 1;
     }
   }
@@ -1066,46 +1104,65 @@
     glowText('BRICK', W / 2, 118, 68, '#29f0ff', pulse);
     glowText('SMASHER', W / 2, 186, 52, '#ff3df2', pulse);
 
-    // Who's playing
+    // Who's playing (tap to sign up / manage account)
     const st = Account.state;
     const warn = Account.expiringSoon();
-    const keep = Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME';
-    const who = st.kind === 'account' ? `PLAYING AS ${st.name.toUpperCase()}`
-      : warn ? `GUEST EXPIRES IN ${guestTimeLeft(st.expires)} · TAP TO SIGN UP & KEEP YOUR ${keep}`
-      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST · TAP TO SIGN UP` : 'GETTING YOUR NAME READY…';
+    const who = st.kind === 'account' ? st.name.toUpperCase()
+      : warn ? `GUEST ENDS IN ${guestTimeLeft(st.expires)} · SIGN UP TO KEEP IT`
+      : st.kind === 'guest' ? `${st.name.toUpperCase()} · GUEST` : '…';
     const pillColor = st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.35)';
-    const whoW = 440;
-    rr(W / 2 - whoW / 2, 236, whoW, 34, 17);
+    ctx.font = font(11, 600);
+    const whoW = Math.min(440, ctx.measureText(who).width + 48);
+    rr(W / 2 - whoW / 2, 236, whoW, 32, 16);
     ctx.fillStyle = warn ? `rgba(255,179,25,${0.12 + 0.08 * Math.sin(S.time * 4)})`
       : S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
     ctx.fill();
     ctx.strokeStyle = pillColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    text(who, W / 2, 253, 10.5, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
-    S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 34, action: 'account' });
+    text(who, W / 2, 252, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
+    S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 32, action: 'account' });
 
     const ch = Share.challenge;
     if (ch) {
-      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 296, 12,
+      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 298, 12,
         DIFFS[ch.diff].color, 8 + 6 * Math.sin(S.time * 4));
     } else {
-      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 296, 12, 'rgba(230,230,255,0.7)', 'center', 500);
+      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 298, 12, 'rgba(230,230,255,0.7)', 'center', 500);
     }
 
     DIFF_KEYS.forEach((k, i) => {
       const d = DIFFS[k];
-      const y = 318 + i * 80;
-      const sub = `${d.blurb}  ·  BEST ${highScores[k]}`;
-      button(d.label, W / 2 - 140, y, 280, 66, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
+      const best = highScores[k];
+      const sub = best > 0 ? `BEST ${best}` : (d.timed ? d.blurb : null);
+      button(d.label, W / 2 - 140, 322 + i * 72, 280, 60, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    button('LEADERBOARD', W / 2 - 140, 568, 136, 46, '#ffe066', 'board');
-    button('SKINS', W / 2 + 4, 568, 136, 46, '#ff3df2', 'skins');
-    drawSoundButton(630);
-    text('MOVE: mouse · touch-drag · ← →     LAUNCH: click · tap · space     PAUSE: P', W / 2, 690, 9, 'rgba(230,230,255,0.5)', 'center', 500);
-    text('Catch green capsules · dodge red ones · levels never end', W / 2, 716, 11, '#3dff8a', 'center', 500);
-    text('Unlock skins by playing · create an account to keep them', W / 2, 738, 10, 'rgba(255,61,242,0.8)', 'center', 500);
+    button('LEADERBOARD', W / 2 - 140, 626, 136, 46, '#ffe066', 'board');
+    button('SKINS', W / 2 + 4, 626, 136, 46, '#ff3df2', 'skins');
+  }
+
+  // Small speaker icon (tap to mute / unmute)
+  function drawSpeaker(x, y) {
+    const muted = Sound.isMuted();
+    ctx.strokeStyle = 'rgba(230,230,255,0.75)';
+    ctx.fillStyle = 'rgba(230,230,255,0.75)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, y + 14); ctx.lineTo(x + 12, y + 14); ctx.lineTo(x + 20, y + 7);
+    ctx.lineTo(x + 20, y + 33); ctx.lineTo(x + 12, y + 26); ctx.lineTo(x + 6, y + 26);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    if (muted) {
+      ctx.moveTo(x + 26, y + 14); ctx.lineTo(x + 36, y + 26);
+      ctx.moveTo(x + 36, y + 14); ctx.lineTo(x + 26, y + 26);
+    } else {
+      ctx.arc(x + 20, y + 20, 8, -0.8, 0.8);
+      ctx.moveTo(x + 20 + 14 * Math.cos(-0.8), y + 20 + 14 * Math.sin(-0.8));
+      ctx.arc(x + 20, y + 20, 14, -0.8, 0.8);
+    }
+    ctx.stroke();
+    S.buttons.push({ x: x - 6, y: y - 6 + S.btnOffset, w: 52, h: 52, action: 'mute' });
   }
 
   function drawPaused() {
@@ -1120,7 +1177,7 @@
     dim(0.55);
     glowText('LEVEL CLEAR!', W / 2, 270, 44, '#3dff8a', 24);
     if (S.perfect) glowText('PERFECT! +1000', W / 2, 322, 20, '#ff3df2', 14 + 6 * Math.sin(S.time * 6));
-    text(`BONUS +${S.clearBonus}`, W / 2, 360, 18, '#ffe066');
+    text(S.timeBonus ? `BONUS +${S.clearBonus}  (TIME +${S.timeBonus})` : `BONUS +${S.clearBonus}`, W / 2, 360, 18, '#ffe066');
     text(`SCORE ${S.score}`, W / 2, 395, 16, '#ffffff');
     const unlock = S.level + 1 === LEVELS.length;
     if (unlock) glowText('ENDLESS MODE UNLOCKED', W / 2, 432, 16, '#29f0ff', 12);
@@ -1130,7 +1187,7 @@
   function drawEnd() {
     dim(0.8);
     glowText('GAME OVER', W / 2, 190, 52, '#ff3d6e', 26);
-    text(`REACHED LEVEL ${S.level + 1}${isEndless(S.level) ? ' (ENDLESS)' : ''} ON ${DIFFS[S.diff].label}`, W / 2, 242, 13, 'rgba(230,230,255,0.75)', 'center', 500);
+    text(`LEVEL ${S.level + 1}${isEndless(S.level) ? ' · ENDLESS' : ''} · ${DIFFS[S.diff].label}`, W / 2, 240, 13, 'rgba(230,230,255,0.75)', 'center', 500);
     glowText(String(S.score), W / 2, 305, 52, '#29f0ff', 18);
     if (Share.challenge && S.diff === Share.challenge.diff) {
       const ch = Share.challenge;
@@ -1150,11 +1207,10 @@
     const dl = DIFFS[S.diff].label;
     if (S.rankState === 'done' && S.rank) {
       if (S.rank.guest) {
-        glowText(`#${S.rank.today_rank} TODAY ON ${dl}`, W / 2, y - 6, 15, DIFFS[S.diff].color, 10);
-        if (Account.expiringSoon()) {
-          text(`SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'} · GUEST EXPIRES IN ${guestTimeLeft(Account.state.expires)}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
-        } else {
-          text(`POSTED AS ${String(S.postedName).toUpperCase()} · SIGN UP TO RANK ALL-TIME`, W / 2, y + 16, 10, '#ff3df2', 'center', 600);
+        const warnNow = Account.expiringSoon();
+        glowText(`#${S.rank.today_rank} TODAY`, W / 2, warnNow ? y - 6 : y, 15, DIFFS[S.diff].color, 10);
+        if (warnNow) {
+          text(`GUEST ENDS IN ${guestTimeLeft(Account.state.expires)} · SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
         }
       } else {
         glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y, 15, DIFFS[S.diff].color, 10);
@@ -1170,7 +1226,7 @@
       button('LEADERBOARD', W / 2 - 130, y2, guest ? 126 : 260, 48, '#ffe066', 'board');
       if (guest) button('SIGN UP', W / 2 + 4, y2, 126, 48, '#3dff8a', 'signup');
       button('MAIN MENU', W / 2 - 130, y2 + 60, 260, 48, '#ff3df2', 'menu');
-      text('SPACE / ENTER TO PLAY AGAIN', W / 2, y2 + 128, 10, 'rgba(230,230,255,0.4)', 'center', 500);
+      if (HAS_KEYBOARD) text('SPACE TO PLAY AGAIN', W / 2, y2 + 128, 10, 'rgba(230,230,255,0.4)', 'center', 500);
     }
   }
 
@@ -1192,6 +1248,7 @@
     };
     if (S.mode === 'menu') {
       centred(drawMenu);
+      drawSpeaker(W - 54, 18); // pinned to the top corner of the screen
       drawParticles();
       drawToast();
       return;
@@ -1301,9 +1358,9 @@
     }
     else if (k === 'm' || k === 'M') Sound.toggleMute();
     else if (S.mode === 'menu') {
-      if (k === 'ArrowUp' || k === 'w' || k === 'W') { S.menuSel = (S.menuSel + 2) % 3; S.hoverAction = null; e.preventDefault(); }
-      else if (k === 'ArrowDown' || k === 's' || k === 'S') { S.menuSel = (S.menuSel + 1) % 3; S.hoverAction = null; e.preventDefault(); }
-      else if (k === '1' || k === '2' || k === '3') requireIdentity(() => startGame(DIFF_KEYS[Number(k) - 1]));
+      if (k === 'ArrowUp' || k === 'w' || k === 'W') { S.menuSel = (S.menuSel + 3) % 4; S.hoverAction = null; e.preventDefault(); }
+      else if (k === 'ArrowDown' || k === 's' || k === 'S') { S.menuSel = (S.menuSel + 1) % 4; S.hoverAction = null; e.preventDefault(); }
+      else if (k === '1' || k === '2' || k === '3' || k === '4') requireIdentity(() => startGame(DIFF_KEYS[Number(k) - 1]));
     }
   });
   window.addEventListener('keyup', (e) => {

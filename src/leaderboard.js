@@ -1,6 +1,6 @@
 // Online leaderboard: all-time (accounts) and last 24 hours (everyone).
 const Leaderboard = (() => {
-  const LABELS = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD' };
+  const LABELS = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD', berserk: 'BERSERK' };
   const panel = document.getElementById('panel');
   const list = document.getElementById('lb-list');
   const status = document.getElementById('lb-status');

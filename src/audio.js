@@ -67,6 +67,7 @@ const Sound = (() => {
     hit: () => tone(330, 0.06, 'square', 0.04),
     brick: (combo) => tone(440 + Math.min(combo, 15) * 45, 0.08, 'square', 0.05),
     metal: () => tone(1400, 0.05, 'triangle', 0.035),
+    tick: () => tone(1050, 0.04, 'square', 0.035),
     explode: () => { noise(0.35, 0.2); tone(120, 0.3, 'sawtooth', 0.05, 40); },
     laser: () => tone(900, 0.06, 'sawtooth', 0.025, 300),
     launch: () => tone(300, 0.1, 'square', 0.04, 600),
