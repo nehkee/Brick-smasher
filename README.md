@@ -38,6 +38,15 @@ Scores are stored in the `brick-smasher` Supabase project (table `public.scores`
 - `submit_score(name, score, level, difficulty)`: validates the nickname, difficulty and a plausible score for the level, then returns the player's rank
 - `get_leaderboard(difficulty, limit)`: top scores for one difficulty
 
+## Players
+
+- **Guests** pick a temporary name that lasts until the game tab is closed. Guest scores appear on the 24-hour board only, and guest skins are lost on exit.
+- **Accounts** (username + password, no email) rank on the all-time board and keep their skins. Profiles live in `public.profiles`, created by a trigger on sign-up.
+
+## Skins
+
+Six free skins are unlocked by playing (level 5, endless mode, 15-combo, level 20, 50,000 points). Three premium skins are shown with prices but can't be bought yet.
+
 ## Endless mode
 
 After level 10, levels are generated forever and get harder (more rows, tougher and metal bricks, faster ball). Generation is seeded by the level number, so every player gets the same level N.
@@ -50,5 +59,7 @@ src/main.js    game loop, physics, rendering, input
 src/levels.js  level layouts (edit to add levels)
 src/audio.js   synthesized sound effects
 src/leaderboard.js  online leaderboard client and panel
+src/account.js guest names, accounts (Supabase Auth)
+src/skins.js   cosmetic skins and skins panel
 src/style.css
 ```

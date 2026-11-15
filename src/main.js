@@ -101,8 +101,10 @@
     passedBest: false,
     prevBest: 0,
     runId: 0,
-    rank: null,
+    rank: null,          // { today_rank, alltime_rank, guest }
     rankState: 'none', // none | sending | done | error
+    rankError: '',
+    toast: null,
   };
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -192,6 +194,7 @@
     S.lastLeftCall = 0;
     S.paddle.x = S.paddle.target = W / 2;
     resetBall();
+    checkLevelUnlocks(i + 1);
     S.banner = { text: `LEVEL ${i + 1}`, sub: (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
     setMode('play');
   }
@@ -253,20 +256,36 @@
     }
   }
 
-  function submitRun(name) {
+  function submitRun() {
     const run = S.runId;
     S.rankState = 'sending';
-    Leaderboard.submit(name, S.score, S.level + 1, S.diff)
-      .then((rank) => { if (S.runId === run) { S.rank = rank; S.rankState = 'done'; } })
-      .catch(() => { if (S.runId === run) S.rankState = 'error'; });
+    Leaderboard.submit(S.score, S.level + 1, S.diff)
+      .then((res) => { if (S.runId === run) { S.rank = res; S.rankState = 'done'; } })
+      .catch((e) => { if (S.runId === run) { S.rankState = 'error'; S.rankError = e.message || ''; } });
+  }
+
+  // ---------- Skins ----------
+  function tryUnlock(id) {
+    const skin = Skins.unlock(id);
+    if (skin) {
+      S.toast = { text: `SKIN UNLOCKED: ${skin.name.toUpperCase()}`, sub: 'EQUIP IT FROM THE MENU', t: 3.5, color: skin.paddle };
+      Sound.good();
+    }
+  }
+  function checkLevelUnlocks(levelNumber) {
+    if (levelNumber >= 5) tryUnlock('inferno');
+    if (levelNumber >= 11) tryUnlock('toxic');
+    if (levelNumber >= 20) tryUnlock('galaxy');
+  }
+
+  function requireIdentity(fn) {
+    if (Account.state.kind) fn();
+    else Account.open({ required: true, then: fn });
   }
 
   function gameOver(won) {
     recordHigh();
-    if (S.score > 0) {
-      const name = load('bs-name', '');
-      if (name) submitRun(name);
-    }
+    if (S.score > 0 && Account.state.kind) submitRun();
     if (won) { Sound.clear(); setMode('win'); }
     else { Sound.over(); setMode('over'); }
   }
@@ -335,6 +354,7 @@
     if (mult > 1) addFloater(cx, cy, `+${pts} x${mult}`, '#ffe066', 13);
     burst(cx, cy, brickColor(br));
     Sound.brick(S.combo);
+    if (S.combo >= 15) tryUnlock('frost');
     if (S.combo % 10 === 0) {
       addFloater(W / 2, H * 0.45, `${S.combo} COMBO!`, '#ff3df2', 26);
       S.shake = Math.max(S.shake, 6);
@@ -464,6 +484,7 @@
     for (const f of S.floaters) { f.y -= 40 * dt; f.t -= dt; }
     S.floaters = S.floaters.filter((f) => f.t > 0);
     S.shake = Math.max(0, S.shake - 40 * dt);
+    if (S.toast) { S.toast.t -= realDt; if (S.toast.t <= 0) S.toast = null; }
 
     if (S.mode !== 'play') return;
 
@@ -476,6 +497,7 @@
       return;
     }
 
+    if (S.score >= 50000) tryUnlock('gold');
     if (!S.passedBest && S.prevBest > 0 && S.score > S.prevBest) {
       S.passedBest = true;
       S.banner = { text: 'NEW BEST!', sub: 'KEEP GOING', t: 1.4, max: 1.4 };
@@ -616,7 +638,7 @@
     ctx.shadowBlur = hover ? 22 : 10;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    text(label, x + w / 2, y + h / 2 - (sub ? 8 : 0), 22, color);
+    text(label, x + w / 2, y + h / 2 - (sub ? 8 : 0), w < 140 ? 12 : w < 200 ? 15 : 22, color);
     if (sub) text(sub, x + w / 2, y + h / 2 + 16, 11, 'rgba(230,230,255,0.6)', 'center', 500);
     S.buttons.push({ x, y: y + S.btnOffset, w, h, action });
   }
@@ -681,7 +703,7 @@
 
   function drawPaddle() {
     const p = S.paddle;
-    let color = '#29f0ff';
+    let color = Skins.current().paddle;
     if (S.effects.magnet) color = '#3dff8a';
     if (S.effects.laser) color = '#ff5a5a';
     if (S.effects.reverse) color = '#ff3df2';
@@ -705,17 +727,19 @@
 
   function drawBalls() {
     const fire = !!S.effects.fire;
-    const color = fire ? '#ff8a3d' : '#ffffff';
+    const skin = Skins.current();
+    const color = fire ? '#ff8a3d' : skin.ball;
+    const trail = fire ? '#ff5a1f' : skin.trail;
     for (const b of S.balls) {
       for (let i = 0; i < b.trail.length; i++) {
         const t = b.trail[i];
         const k = i / b.trail.length;
         ctx.globalAlpha = k * (fire ? 0.5 : 0.25);
-        ctx.fillStyle = fire ? '#ff5a1f' : '#29f0ff';
+        ctx.fillStyle = trail;
         ctx.beginPath(); ctx.arc(t.x, t.y, BALL_R * (0.4 + k * 0.6), 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalAlpha = 1;
-      ctx.shadowColor = fire ? '#ff5a1f' : '#29f0ff';
+      ctx.shadowColor = trail;
       ctx.shadowBlur = 18;
       ctx.fillStyle = color;
       ctx.beginPath(); ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2); ctx.fill();
@@ -836,6 +860,25 @@
     }
   }
 
+  function drawToast() {
+    if (!S.toast) return;
+    const t = S.toast;
+    ctx.globalAlpha = Math.min(1, t.t * 2);
+    const y = HUD_H + 44;
+    rr(W / 2 - 170, y - 22, 340, 48, 10);
+    ctx.fillStyle = 'rgba(8,8,24,0.92)';
+    ctx.fill();
+    ctx.strokeStyle = t.color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = t.color;
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    text(t.text, W / 2, y - 4, 14, t.color);
+    text(t.sub, W / 2, y + 14, 9, 'rgba(230,230,255,0.7)', 'center', 500);
+    ctx.globalAlpha = 1;
+  }
+
   function drawBanner() {
     if (S.banner) {
       const b = S.banner;
@@ -881,21 +924,38 @@
     }
     dim(0.45);
     const pulse = 18 + 8 * Math.sin(S.time * 2.5);
-    glowText('BRICK', W / 2, 150, 72, '#29f0ff', pulse);
-    glowText('SMASHER', W / 2, 225, 56, '#ff3df2', pulse);
-    text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 310, 13, 'rgba(230,230,255,0.7)', 'center', 500);
+    glowText('BRICK', W / 2, 118, 68, '#29f0ff', pulse);
+    glowText('SMASHER', W / 2, 186, 52, '#ff3df2', pulse);
+
+    // Who's playing
+    const st = Account.state;
+    const who = st.kind === 'account' ? `PLAYING AS ${st.name.toUpperCase()}`
+      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST` : 'TAP TO CHOOSE A NAME';
+    const whoW = 300;
+    rr(W / 2 - whoW / 2, 236, whoW, 34, 17);
+    ctx.fillStyle = S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = st.kind === 'account' ? '#3dff8a' : 'rgba(230,230,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    text(who, W / 2, 253, 11, st.kind === 'account' ? '#3dff8a' : 'rgba(230,230,255,0.85)', 'center', 600);
+    S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 34, action: 'account' });
+
+    text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 296, 12, 'rgba(230,230,255,0.7)', 'center', 500);
 
     DIFF_KEYS.forEach((k, i) => {
       const d = DIFFS[k];
-      const y = 340 + i * 92;
+      const y = 318 + i * 80;
       const sub = `${d.blurb}  ·  BEST ${highScores[k]}`;
-      button(d.label, W / 2 - 140, y, 280, 72, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
+      button(d.label, W / 2 - 140, y, 280, 66, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    button('LEADERBOARD', W / 2 - 140, 616, 280, 48, '#ffe066', 'board');
-    drawSoundButton(678);
-    text('MOVE: mouse · touch-drag · ← →     LAUNCH: click · tap · space     PAUSE: P', W / 2, 734, 9, 'rgba(230,230,255,0.5)', 'center', 500);
-    text('Catch green capsules · dodge red ones · levels never end', W / 2, 762, 11, '#3dff8a', 'center', 500);
+    button('LEADERBOARD', W / 2 - 140, 568, 136, 46, '#ffe066', 'board');
+    button('SKINS', W / 2 + 4, 568, 136, 46, '#ff3df2', 'skins');
+    drawSoundButton(630);
+    text('MOVE: mouse · touch-drag · ← →     LAUNCH: click · tap · space     PAUSE: P', W / 2, 690, 9, 'rgba(230,230,255,0.5)', 'center', 500);
+    text('Catch green capsules · dodge red ones · levels never end', W / 2, 716, 11, '#3dff8a', 'center', 500);
+    text('Unlock skins by playing · create an account to keep them', W / 2, 738, 10, 'rgba(255,61,242,0.8)', 'center', 500);
   }
 
   function drawPaused() {
@@ -932,14 +992,22 @@
 
     // Leaderboard status
     const y = 392;
-    if (S.rankState === 'done') glowText(`#${S.rank} ON THE ${DIFFS[S.diff].label} LEADERBOARD`, W / 2, y, 15, DIFFS[S.diff].color, 10);
-    else if (S.rankState === 'sending') text('SUBMITTING SCORE…', W / 2, y, 12, 'rgba(230,230,255,0.6)', 'center', 500);
-    else if (S.rankState === 'error') text('COULD NOT REACH LEADERBOARD', W / 2, y, 12, '#ff3d6e', 'center', 500);
+    const dl = DIFFS[S.diff].label;
+    if (S.rankState === 'done' && S.rank) {
+      if (S.rank.guest) {
+        glowText(`#${S.rank.today_rank} TODAY ON ${dl}`, W / 2, y - 6, 15, DIFFS[S.diff].color, 10);
+        text('CREATE AN ACCOUNT TO RANK ALL-TIME', W / 2, y + 16, 10, '#ff3df2', 'center', 600);
+      } else {
+        glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y, 15, DIFFS[S.diff].color, 10);
+      }
+    } else if (S.rankState === 'sending') text('SUBMITTING SCORE…', W / 2, y, 12, 'rgba(230,230,255,0.6)', 'center', 500);
+    else if (S.rankState === 'error') text(`SCORE NOT SAVED: ${S.rankError}`.toUpperCase().slice(0, 60), W / 2, y, 10, '#ff3d6e', 'center', 500);
 
     if (S.modeTime > 0.5) {
       button('PLAY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', `start:${S.diff}`, null, true);
-      const canSave = S.score > 0 && (S.rankState === 'none' || S.rankState === 'error');
-      button(canSave ? 'SAVE MY SCORE' : 'LEADERBOARD', W / 2 - 130, 505, 260, 52, '#ffe066', canSave ? 'save' : 'board');
+      const guest = Account.state.kind !== 'account';
+      button('LEADERBOARD', W / 2 - 130, 505, guest ? 126 : 260, 52, '#ffe066', 'board');
+      if (guest) button('SIGN UP', W / 2 + 4, 505, 126, 52, '#3dff8a', 'signup');
       button('MAIN MENU', W / 2 - 130, 573, 260, 52, '#ff3df2', 'menu');
       text('SPACE / ENTER TO PLAY AGAIN', W / 2, 650, 10, 'rgba(230,230,255,0.4)', 'center', 500);
     }
@@ -974,6 +1042,7 @@
     drawParticles();
     drawHUD();
     if (S.mode === 'play') drawBanner();
+    drawToast();
     if (S.mode === 'paused') centred(drawPaused);
     if (S.mode === 'clear') centred(drawClear);
     if (S.mode === 'over' || S.mode === 'win') centred(drawEnd);
@@ -982,7 +1051,7 @@
   // ---------- Input ----------
   function doAction(action) {
     if (!action) return false;
-    if (action.startsWith('start:')) { startGame(action.slice(6)); return true; }
+    if (action.startsWith('start:')) { const d = action.slice(6); requireIdentity(() => startGame(d)); return true; }
     switch (action) {
       case 'pause': setMode('paused'); return true;
       case 'resume': setMode('play'); return true;
@@ -990,19 +1059,9 @@
       case 'next': loadLevel(S.level + 1); return true;
       case 'mute': Sound.toggleMute(); return true;
       case 'board': Leaderboard.open({ diff: S.mode === 'menu' ? DIFF_KEYS[S.menuSel] : S.diff }); return true;
-      case 'save': {
-        const run = S.runId;
-        Leaderboard.open({
-          diff: S.diff,
-          submission: { score: S.score, level: S.level + 1, diff: S.diff },
-          defaultName: load('bs-name', ''),
-          onSubmitted: (rank, name) => {
-            save('bs-name', name);
-            if (S.runId === run) { S.rank = rank; S.rankState = 'done'; }
-          },
-        });
-        return true;
-      }
+      case 'skins': Skins.open(); return true;
+      case 'account': Account.open({ required: !Account.state.kind }); return true;
+      case 'signup': Account.open({ tab: 'signup' }); return true;
     }
     return false;
   }
@@ -1042,7 +1101,7 @@
 
   function primaryAction() {
     switch (S.mode) {
-      case 'menu': startGame(DIFF_KEYS[S.menuSel]); break;
+      case 'menu': requireIdentity(() => startGame(DIFF_KEYS[S.menuSel])); break;
       case 'play': launch(); break;
       case 'paused': setMode('play'); break;
       case 'clear': if (S.modeTime > 0.6) loadLevel(S.level + 1); break;
@@ -1051,7 +1110,11 @@
   }
 
   window.addEventListener('keydown', (e) => {
-    if (Leaderboard.isOpen()) return;
+    const openPanel = document.querySelector('.lb:not([hidden])');
+    if (openPanel) {
+      if (e.key === 'Escape') openPanel.querySelector('.lb-close').click();
+      return;
+    }
     Sound.unlock();
     const k = e.key;
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') { keys.left = true; e.preventDefault(); }
@@ -1091,6 +1154,10 @@
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
+  Account.init().then(() => {
+    if (!Account.state.kind) Account.open({ required: true });
+  });
 
   // Hook for automated testing.
   window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel };

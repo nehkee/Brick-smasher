@@ -16,19 +16,16 @@
 <body>
   <canvas id="game" aria-label="Brick Smasher game"></canvas>
 
+  <!-- Leaderboard -->
   <div id="panel" class="lb" hidden>
     <div class="lb-card" role="dialog" aria-labelledby="lb-title">
       <button class="lb-close" aria-label="Close">&times;</button>
       <h2 id="lb-title">LEADERBOARD</h2>
-      <form id="lb-form" hidden>
-        <p id="lb-form-msg"></p>
-        <div class="lb-row">
-          <input id="lb-name" maxlength="12" placeholder="Your nickname" autocomplete="nickname" enterkeyhint="send">
-          <button type="submit">SUBMIT</button>
-        </div>
-        <p id="lb-form-err" class="lb-err"></p>
-      </form>
       <div class="lb-tabs" role="tablist">
+        <button data-board="alltime" role="tab">ALL-TIME</button>
+        <button data-board="today" role="tab">TODAY</button>
+      </div>
+      <div class="lb-tabs small" role="tablist">
         <button data-diff="easy" role="tab">EASY</button>
         <button data-diff="normal" role="tab">NORMAL</button>
         <button data-diff="hard" role="tab">HARD</button>
@@ -37,8 +34,60 @@
       <ol id="lb-list"></ol>
     </div>
   </div>
+
+  <!-- Who's playing: guest / log in / sign up -->
+  <div id="id-panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="id-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="id-title">WHO'S PLAYING?</h2>
+      <div class="lb-tabs" role="tablist">
+        <button data-tab="guest" role="tab">GUEST</button>
+        <button data-tab="login" role="tab">LOG IN</button>
+        <button data-tab="signup" role="tab">SIGN UP</button>
+      </div>
+      <form id="f-guest" data-pane="guest" class="id-form">
+        <p class="hint">Jump straight in with a temporary name. It lasts until you close the game. Guests rank on the 24-hour board.</p>
+        <input name="name" maxlength="12" placeholder="Guest name" autocomplete="off" enterkeyhint="go">
+        <button type="submit" class="go">PLAY AS GUEST</button>
+        <p class="lb-err"></p>
+      </form>
+      <form id="f-login" data-pane="login" class="id-form" hidden>
+        <input name="username" maxlength="12" placeholder="Username" autocomplete="username" autocapitalize="off">
+        <input name="password" type="password" placeholder="Password" autocomplete="current-password">
+        <button type="submit" class="go">LOG IN</button>
+        <p class="lb-err"></p>
+      </form>
+      <form id="f-signup" data-pane="signup" class="id-form" hidden>
+        <p class="hint">Rank on the <b>all-time</b> leaderboard and keep your skins forever.</p>
+        <input name="username" maxlength="12" placeholder="Username (3 to 12 letters, numbers, _)" autocomplete="username" autocapitalize="off">
+        <input name="password" type="password" placeholder="Password (6+ characters)" autocomplete="new-password">
+        <button type="submit" class="go">CREATE ACCOUNT</button>
+        <p class="hint small">No email needed, so there's no password reset. Remember your password!</p>
+        <p class="lb-err"></p>
+      </form>
+      <div id="acct-pane" class="id-form" hidden>
+        <p class="hint">Logged in as <b id="acct-name"></b>. Your scores rank all-time and your skins are saved.</p>
+        <button id="switch-acct" class="go" type="button">BACK TO GAME</button>
+        <button id="logout" class="ghost" type="button">LOG OUT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skins -->
+  <div id="skins-panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="skins-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="skins-title">SKINS</h2>
+      <div id="skins-grid"></div>
+      <p id="skins-note" class="hint"></p>
+    </div>
+  </div>
+
   <script src="src/levels.js"></script>
   <script src="src/audio.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="src/account.js"></script>
+  <script src="src/skins.js"></script>
   <script src="src/leaderboard.js"></script>
   <script src="src/main.js"></script>
 </body>
