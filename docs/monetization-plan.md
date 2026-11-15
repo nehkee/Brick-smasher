@@ -15,10 +15,12 @@ hundred players a day and an active Today leaderboard).
      buttons to real purchases, and record purchased skins on the player's account
      (accounts only, so purchases are never lost).
 
-2. **One "continue" per run, paid or by watching an ad**
+2. **One paid continue per run ($0.99, sold singly)**
    - A second chance after the last try is lost, not a power boost.
-   - Limited to one per run.
+   - Limited to one per run; no packs of lives; **no ads** (owner's rule).
+   - Only offered when the player is close to beating their high score.
    - Runs that used a continue are marked on the leaderboard to keep it fair.
+   - Full details: `docs/possible-future-improvements.md`, section 3.
 
 3. **Season pass (later)**
    - Monthly exclusive skins and ball trails for regular players.
