@@ -19,11 +19,12 @@
   const MAX_LIVES = 2; // two tries per run, on every difficulty
 
   const DIFFS = {
-    easy:   { label: 'EASY',   speed: 0.85, bad: 0.2,  drop: 0.22, color: '#3dff8a', blurb: 'SLOWER BALL · FEWER TRAPS' },
-    normal: { label: 'NORMAL', speed: 1.0,  bad: 0.33, drop: 0.18, color: '#29f0ff', blurb: 'THE CLASSIC CHALLENGE' },
-    hard:   { label: 'HARD',   speed: 1.2,  bad: 0.45, drop: 0.15, color: '#ff3d6e', blurb: 'FAST BALL · MORE TRAPS' },
+    // paddle: base paddle width · ramp: extra speed per level · points: score bonus
+    easy:   { label: 'EASY',   speed: 0.8,  bad: 0.15, drop: 0.22, paddle: 108, ramp: 0.03, points: 1,    color: '#3dff8a', blurb: 'SLOWER BALL · FEWER TRAPS' },
+    normal: { label: 'NORMAL', speed: 1.0,  bad: 0.33, drop: 0.18, paddle: 100, ramp: 0.05, points: 1.25, color: '#29f0ff', blurb: 'THE CLASSIC CHALLENGE' },
+    hard:   { label: 'HARD',   speed: 1.22, bad: 0.45, drop: 0.15, paddle: 94,  ramp: 0.06, points: 1.5,  color: '#ff3d6e', blurb: 'FAST BALL · MORE TRAPS' },
     // Berserk: fast ball and a countdown on every level.
-    berserk: { label: 'BERSERK', speed: 1.15, bad: 0.35, drop: 0.2, color: '#ff8a3d', blurb: '2:00 PER LEVEL', timed: true },
+    berserk: { label: 'BERSERK', speed: 1.15, bad: 0.35, drop: 0.2, paddle: 100, ramp: 0.05, points: 1.5, color: '#ff8a3d', blurb: '2:00 PER LEVEL', timed: true },
   };
   const DIFF_KEYS = ['easy', 'normal', 'hard', 'berserk'];
   const LEVEL_TIME = 120; // seconds per level in Berserk
@@ -232,7 +233,13 @@
   }
   const dmod = (id) => !!(S.daily && S.daily.mod.id === id);
   const isEndless = (i) => i >= LEVELS.length;
-  function levelSpeed(i) { return Math.min(1.9, 1 + 0.05 * Math.min(i, 10) + 0.015 * Math.max(0, i - 10)); }
+  // How much faster the ball gets each level, depending on the mode.
+  function levelSpeed(i) {
+    const r = (DIFFS[S.diff] && DIFFS[S.diff].ramp) || 0.05;
+    return Math.min(1.9, 1 + r * Math.min(i, 10) + r * 0.3 * Math.max(0, i - 10));
+  }
+  // Harder modes score more: Normal x1.25, Hard and Berserk x1.5.
+  const pointsMult = () => (S.daily ? 1 : (DIFFS[S.diff].points || 1));
 
   function setMode(m) {
     S.mode = m; S.modeTime = 0; S.hoverAction = null;
@@ -331,7 +338,7 @@
   function paddleWidth() {
     if (S.effects.mega) return 230;
     if (S.effects.wide) return 160;
-    const base = dmod('tiny') ? 72 : 100;
+    const base = dmod('tiny') ? 72 : (DIFFS[S.diff].paddle || 100);
     if (S.effects.shrink) return Math.round(base * 0.64);
     return base;
   }
@@ -451,7 +458,7 @@
     if (S.perfect && !S.daily) Progress.track('perfect');
     if (DIFFS[S.diff].timed) Progress.track('berserk_left', Math.floor(S.timeLeft));
     S.timeBonus = DIFFS[S.diff].timed ? Math.ceil(Math.max(0, S.timeLeft)) * 50 : 0;
-    const bonus = 250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0) + S.timeBonus;
+    const bonus = Math.round((250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0) + S.timeBonus) * pointsMult());
     S.score += bonus;
     S.clearBonus = bonus;
     S.capsules = []; S.lasers = [];
@@ -553,7 +560,7 @@
     Progress.track('combo', S.combo);
     const mult = Math.min(8, 1 + Math.floor((S.combo - 1) / 3));
     const base = br.type === 'bomb' ? 25 : br.maxHp * 10;
-    const pts = base * mult;
+    const pts = Math.round(base * mult * pointsMult());
     S.score += pts;
     const cx = br.x + br.w / 2, cy = br.y + br.h / 2;
     if (mult > 1) addFloater(cx, cy, `+${pts} x${mult}`, '#ffe066', 13);
@@ -620,7 +627,7 @@
     addFloater(S.paddle.x, PADDLE_Y - 24, p.name, p.good ? '#3dff8a' : '#ff3d6e', 16);
     if (p.good) { Sound.good(); Haptics.good(); } else { Sound.bad(); Haptics.bad(); }
     burst(S.paddle.x, PADDLE_Y, p.good ? '#3dff8a' : '#ff3d6e', 16, 180);
-    if (p.good) S.score += 50;
+    if (p.good) S.score += Math.round(50 * pointsMult());
 
     if (type === 'life') { S.lives = Math.min(MAX_LIVES, S.lives + 1); return; }
     if (type === 'multi') {
@@ -1162,6 +1169,10 @@
 
     text('SCORE', 20, 18, 10, 'rgba(230,230,255,0.55)', 'left', 500);
     glowText(String(S.score), 20, 40, 20, '#29f0ff', 8, 'left');
+    if (pointsMult() > 1) {
+      ctx.font = font(20);
+      text(`×${pointsMult()}`, 28 + ctx.measureText(String(S.score)).width, 42, 11, DIFFS[S.diff].color, 'left', 700);
+    }
     if (S.daily) text(`DAILY · ${S.daily.mod.name}`, W / 2, 18, 10, '#ffd700', 'center', 600);
     else text(isEndless(S.level) ? `ENDLESS · LEVEL ${S.level + 1}` : `LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, isEndless(S.level) ? '#ff3df2' : 'rgba(230,230,255,0.55)', 'center', 500);
     if (DIFFS[S.diff].timed) {
@@ -1337,7 +1348,8 @@
     DIFF_KEYS.forEach((k, i) => {
       const dd = DIFFS[k];
       const best = highScores[k];
-      const sub = best > 0 ? `BEST ${best}` : (dd.timed ? dd.blurb : null);
+      const bonusTxt = dd.points > 1 ? `×${dd.points} POINTS` : '';
+      const sub = [best > 0 ? `BEST ${best}` : (dd.timed ? dd.blurb : ''), bonusTxt].filter(Boolean).join(' · ') || null;
       button(dd.label, W / 2 - 140, 346 + i * 62, 280, 52, dd.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 

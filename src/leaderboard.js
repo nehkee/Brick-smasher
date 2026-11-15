@@ -74,7 +74,7 @@ const Leaderboard = (() => {
       podium.replaceChildren();
       list.replaceChildren();
       if (!rows.length) {
-        status.replaceChildren(el('span', 'empty-icon', '🏆'), el('span', 'empty-text', `No ${LABELS[diff]} scores ${board === 'today' ? 'today' : 'yet'}. Be the first legend!`));
+        status.replaceChildren(el('span', 'empty-text', `No ${LABELS[diff]} scores ${board === 'today' ? 'today' : 'yet'}. Be the first legend!`));
       } else {
         const top = rows.slice(0, 3);
         const order = [top[1], top[0], top[2]];

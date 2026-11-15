@@ -60,6 +60,18 @@ Free skins unlock with player level, never before level 10: Inferno (10), Toxic 
 
 Brick shards, explosion shockwaves, a split-second freeze on big hits, paddle squash, phone vibration on Android (iPhones don't allow it for web pages), and original generated music (menu and gameplay tracks). The gear icon opens Settings to switch Music, Sound effects and Vibration on or off.
 
+## Modes
+
+| | Easy | Normal | Hard | Berserk |
+|---|---|---|---|---|
+| Ball speed | 80% | 100% | 122% | 115% |
+| Paddle | 108 | 100 | 94 | 100 |
+| Extra speed per level | +3% | +5% | +6% | +5% |
+| Traps (of drops) | 15% | 33% | 45% | 35% |
+| Score bonus | ×1 | ×1.25 | ×1.5 | ×1.5 |
+
+All modes have 2 tries per run. The score bonus applies to bricks, power-ups and level-clear bonuses (not the daily challenge).
+
 ## Berserk mode
 
 A timed mode with its own leaderboard: a fast ball and 2:00 per level. The clock starts when the ball is launched, stops while paused, ticks in the last 10 seconds, and running out costs a try (the clock refills and the bricks stay). Seconds left when a level is cleared are worth 50 points each.
