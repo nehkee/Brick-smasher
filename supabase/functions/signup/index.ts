@@ -1,6 +1,7 @@
 // Creates a Brick Smasher account (username + password) without a confirmation email.
-// Public endpoint: it validates its own input and only ever creates confirmed
-// accounts on the synthetic players domain. Deployed with verify_jwt = false.
+// Public endpoint: it validates its own input, rate-limits sign-ups per network,
+// and only ever creates confirmed accounts on the synthetic players domain.
+// Deployed with verify_jwt = false.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const ACCOUNT_DOMAIN = 'players.brick-smasher-liart.vercel.app';
@@ -32,6 +33,15 @@ Deno.serve(async (req: Request) => {
   if (takenErr) return json({ error: 'Could not check username. Try again.' }, 500);
   if (taken) return json({ error: 'That username is taken.' }, 409);
 
+  // Rate limit: at most 5 sign-ups per network address per hour (and 300/hour
+  // overall). Only a one-way hash of the address is stored, never the address.
+  const ip = (req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'unknown').split(',')[0].trim();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`brick-smasher:${ip}`));
+  const ipHash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const { data: allowed, error: limitErr } = await admin.rpc('allow_signup', { p_ip_hash: ipHash });
+  if (limitErr) return json({ error: 'Could not create account. Try again.' }, 500);
+  if (!allowed) return json({ error: 'Too many sign-ups from your network. Please try again later.' }, 429);
+
   const { error } = await admin.auth.admin.createUser({
     email: `${username.toLowerCase()}@${ACCOUNT_DOMAIN}`,
     password,
@@ -39,8 +49,8 @@ Deno.serve(async (req: Request) => {
     user_metadata: { username },
   });
   if (error) {
-    const taken = /already|registered|exists/i.test(error.message);
-    return json({ error: taken ? 'That username is taken.' : 'Could not create account. Try again.' }, taken ? 409 : 500);
+    const dup = /already|registered|exists/i.test(error.message);
+    return json({ error: dup ? 'That username is taken.' : 'Could not create account. Try again.' }, dup ? 409 : 500);
   }
   return json({ ok: true });
 });
