@@ -57,18 +57,27 @@
   // ---------- Canvas ----------
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  // The playing field is always W wide (fair for everyone); its height grows on
+  // tall screens. The canvas covers the whole screen: on wide screens (landscape
+  // tablets, desktops) the background fills the space beside the field.
+  let VW = W, VH = H; // whole screen in game units
+  let OX = 0, OY = 0; // where the field starts on screen, in game units
   function resize() {
+    const iw = Math.max(1, window.innerWidth), ih = Math.max(1, window.innerHeight);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const ratio = window.innerHeight / Math.max(1, window.innerWidth);
-    H = Math.round(Math.max(800, Math.min(1400, W * ratio)));
+    H = Math.round(Math.max(800, Math.min(1400, W * (ih / iw))));
     PADDLE_Y = H - 80;
-    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
-    canvas.style.width = `${W * scale}px`;
-    canvas.style.height = `${H * scale}px`;
-    canvas.width = Math.round(W * scale * dpr);
-    canvas.height = Math.round(H * scale * dpr);
+    const scale = Math.min(iw / W, ih / H);
+    VW = iw / scale; VH = ih / scale;
+    OX = (VW - W) / 2; OY = (VH - H) / 2;
+    canvas.style.width = `${iw}px`;
+    canvas.style.height = `${ih}px`;
+    canvas.width = Math.round(iw * dpr);
+    canvas.height = Math.round(ih * dpr);
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
   resize();
 
   // ---------- State ----------
@@ -657,18 +666,46 @@
 
   // ---------- Draw ----------
   function drawBackground() {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    // Whole screen, in field coordinates (the area beside the field included).
+    const x0 = -OX, y0 = -OY, x1 = W + OX, y1 = H + OY;
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
     g.addColorStop(0, '#070818');
     g.addColorStop(1, '#170a2e');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
     ctx.strokeStyle = 'rgba(140,90,255,0.08)';
     ctx.lineWidth = 1;
     const off = (S.time * 12) % 40;
     ctx.beginPath();
-    for (let x = 0; x <= W; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-    for (let y = -40 + off; y <= H; y += 40) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    for (let x = Math.floor(x0 / 40) * 40; x <= x1; x += 40) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+    for (let y = Math.floor(y0 / 40) * 40 - 40 + off; y <= y1; y += 40) { ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
     ctx.stroke();
+
+    if (OX > 4) {
+      // Dim the side areas a little and draw glowing walls at the field edges.
+      ctx.fillStyle = 'rgba(3,2,10,0.45)';
+      ctx.fillRect(x0, y0, OX, y1 - y0);
+      ctx.fillRect(W, y0, OX, y1 - y0);
+      ctx.strokeStyle = 'rgba(41,240,255,0.55)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#29f0ff';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.moveTo(-1, y0); ctx.lineTo(-1, y1);
+      ctx.moveTo(W + 1, y0); ctx.lineTo(W + 1, y1);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      // Phones held sideways get a small field: suggest turning upright.
+      if (window.innerHeight < 500 && OX > 160) {
+        ctx.globalAlpha = 0.55 + 0.25 * Math.sin(S.time * 3);
+        for (const cx of [-OX / 2, W + OX / 2]) {
+          text('↻', cx, H / 2 - 40, 64, '#29f0ff');
+          text('ROTATE FOR A', cx, H / 2 + 30, 22, 'rgba(230,230,255,0.85)');
+          text('BIGGER VIEW', cx, H / 2 + 60, 22, 'rgba(230,230,255,0.85)');
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   function drawBricks() {
@@ -908,7 +945,7 @@
 
   function dim(a = 0.72) {
     ctx.fillStyle = `rgba(4,3,15,${a})`;
-    ctx.fillRect(0, -H, W, H * 3);
+    ctx.fillRect(-OX - 10, -OY - H, VW + 20, VH + H * 2);
   }
 
   function drawSoundButton(y) {
@@ -1041,7 +1078,8 @@
 
   function draw() {
     S.buttons = [];
-    ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+    const k = canvas.width / VW;
+    ctx.setTransform(k, 0, 0, k, OX * k, OY * k);
     if (S.shake > 0) ctx.translate(rand(-S.shake, S.shake) * 0.5, rand(-S.shake, S.shake) * 0.5);
 
     drawBackground();
@@ -1103,7 +1141,7 @@
 
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    return { x: ((e.clientX - r.left) / r.width) * VW - OX, y: ((e.clientY - r.top) / r.height) * VH - OY };
   }
 
   canvas.addEventListener('pointermove', (e) => {

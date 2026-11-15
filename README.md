@@ -51,6 +51,10 @@ Six free skins are unlocked by playing (level 5, endless mode, 15-combo, level 2
 
 After level 10, levels are generated forever and get harder (more rows, tougher and metal bricks, faster ball). Generation is seeded by the level number, so every player gets the same level N.
 
+## Screen sizes
+
+The playing field is always 600 units wide (so levels and scores are fair on every device) and grows taller on tall screens. The canvas always covers the whole screen: on landscape tablets and desktops the background and glowing walls fill the space beside the field, and the paddle follows your finger or mouse anywhere on screen. Tested on 7" tablets, iPad mini, iPad, Galaxy Tab, iPad Pro 12.9", Surface, phones and desktop, in portrait and landscape.
+
 ## Project layout
 
 ```

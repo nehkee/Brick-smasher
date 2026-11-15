@@ -221,3 +221,21 @@ html, body {
 .skin button.locked { color: rgba(230, 230, 255, 0.6); background: rgba(255, 255, 255, 0.06); }
 .skin.premium button { color: #050614; background: #ffe066; opacity: 0.8; }
 @media (max-width: 380px) { #skins-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- Tablets and larger screens ---------- */
+@media (min-width: 700px) and (min-height: 600px) {
+  .lb-card { max-width: 540px; padding: 28px 26px 18px; }
+  .lb h2 { font-size: 28px; margin-bottom: 18px; }
+  .lb-tabs button { padding: 11px 0; font-size: 14px; }
+  .lb-tabs.small button { padding: 8px 0; font-size: 13px; }
+  #lb-list { font-size: 16px; }
+  #lb-list li { grid-template-columns: 56px 1fr auto auto; padding: 11px 8px; }
+  #lb-list .lv { font-size: 12px; }
+  .hint { font-size: 14px; }
+  .hint.small { font-size: 12px; }
+  .id-form input { font-size: 18px; padding: 14px; }
+  .lb button.go, .lb button.ghost { font-size: 17px; padding: 14px; }
+  .lb-close { width: 44px; height: 44px; font-size: 34px; }
+  .sname { font-size: 14px; }
+  .skin button { font-size: 11px; padding: 8px 4px; }
+}
