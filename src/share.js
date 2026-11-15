@@ -105,7 +105,10 @@ const Share = (() => {
     const text = messageFor(r);
     const link = linkFor(r);
     current = { r, text, link, card: null };
+    // Phones: one Share button that opens the device's own share menu.
+    // Devices without one get the individual buttons instead.
     nativeBtn.hidden = !navigator.share;
+    document.getElementById('share-more').hidden = !!navigator.share;
     const card = await makeCard(r);
     if (current && current.r === r) { current.card = card; preview.src = card.url; }
   }
