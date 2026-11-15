@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#070818">
-  <meta name="description" content="Brick Smasher: a neon arcade brick-breaking game with power-ups and 10 levels.">
+  <meta name="description" content="A neon brick-breaker with power-ups, endless levels and a live leaderboard.">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Brick Smasher</title>
@@ -12,14 +12,14 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Brick Smasher">
-  <meta property="og:description" content="2 tries. No saves. How far can you go? A neon brick-breaker with power-ups, endless levels and a live leaderboard.">
+  <meta property="og:description" content="A neon brick-breaker with power-ups, endless levels and a live leaderboard.">
   <meta property="og:url" content="https://brick-smasher-liart.vercel.app/">
   <meta property="og:image" content="https://brick-smasher-liart.vercel.app/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Brick Smasher">
-  <meta name="twitter:description" content="2 tries. No saves. How far can you go?">
+  <meta name="twitter:description" content="A neon brick-breaker with power-ups, endless levels and a live leaderboard.">
   <meta name="twitter:image" content="https://brick-smasher-liart.vercel.app/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -107,6 +107,33 @@
     </div>
   </div>
 
+  <!-- Settings -->
+  <div id="settings-panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="settings-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="settings-title">SETTINGS</h2>
+      <div class="toggles">
+        <button class="toggle" data-setting="music" type="button"><span>MUSIC</span><b></b></button>
+        <button class="toggle" data-setting="sfx" type="button"><span>SOUND EFFECTS</span><b></b></button>
+        <button class="toggle" data-setting="vibrate" type="button"><span>VIBRATION</span><b></b></button>
+      </div>
+      <p id="vibrate-note" class="hint small"></p>
+    </div>
+  </div>
+
+  <!-- Level, missions, streak, badges -->
+  <div id="progress-panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="progress-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="progress-title">MISSIONS</h2>
+      <div id="pp-level"></div>
+      <ol id="pp-missions"></ol>
+      <div id="pp-streak"></div>
+      <div id="pp-badges"></div>
+      <p id="pp-note" class="hint small"></p>
+    </div>
+  </div>
+
   <!-- Skins -->
   <div id="skins-panel" class="lb" hidden>
     <div class="lb-card" role="dialog" aria-labelledby="skins-title">
@@ -139,6 +166,8 @@
   <script src="src/vendor/supabase.js"></script> <!-- @supabase/supabase-js 2.45.4, self-hosted -->
   <script src="src/account.js"></script>
   <script src="src/skins.js"></script>
+  <script src="src/progress.js"></script>
+  <script src="src/panels.js"></script>
   <script src="src/leaderboard.js"></script>
   <script src="src/share.js"></script>
   <script src="src/main.js"></script>

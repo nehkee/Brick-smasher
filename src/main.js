@@ -107,6 +107,13 @@
     menuSel: Share.challenge ? ['easy', 'normal', 'hard', 'berserk'].indexOf(Share.challenge.diff) : 1,
     timeLeft: 0,
     clockRunning: false,
+    daily: null,        // { seed, mod } while playing the daily challenge
+    dailyResult: null,
+    xpResult: null,
+    toastQueue: [],
+    waves: [],          // expanding shockwave rings
+    hitstop: 0,         // brief freeze on big impacts
+    paddleSquash: 0,
     lastTick: 0,
     timeBonus: 0,
     beatChallenge: false,
@@ -158,14 +165,14 @@
   const ENDLESS_NAMES = ['Overdrive', 'Neon Rain', 'Static', 'Pulse', 'Voltage', 'Afterglow', 'Meltdown', 'Hyperdrive', 'Blackout', 'Shockwave', 'Supernova', 'Glitch'];
 
   // Deterministic: everyone gets the same level N, which keeps the leaderboard fair.
-  function generateLevel(i) {
-    const r = mulberry32(i * 7919 + 13);
-    const depth = i - LEVELS.length;
+  function generateLevel(i, opts = {}) {
+    const r = mulberry32(opts.seed != null ? opts.seed : i * 7919 + 13);
+    const depth = opts.depth != null ? opts.depth : i - LEVELS.length;
     const rows = Math.min(12, 6 + Math.floor(depth / 3));
     const pHard = Math.min(0.6, 0.15 + depth * 0.02);
     const pMid = Math.min(0.5, 0.3 + depth * 0.01);
     const pMetal = Math.min(0.14, 0.03 + depth * 0.005);
-    const pBomb = 0.06;
+    const pBomb = opts.bombs ? 0.2 : 0.06;
     const pEmpty = 0.1 + r() * 0.2;
     const out = [];
     for (let row = 0; row < rows; row++) {
@@ -218,20 +225,56 @@
     }
   }
   function getLevel(i) { return i < LEVELS.length ? LEVELS[i] : generateLevel(i); }
+  // Today's daily challenge level: the same for every player.
+  function dailyLevel() {
+    const lvl = generateLevel(0, { seed: S.daily.seed, depth: 8, bombs: S.daily.mod.id === 'bombs' });
+    return { name: S.daily.mod.name, rows: lvl.rows };
+  }
+  const dmod = (id) => !!(S.daily && S.daily.mod.id === id);
   const isEndless = (i) => i >= LEVELS.length;
   function levelSpeed(i) { return Math.min(1.9, 1 + 0.05 * Math.min(i, 10) + 0.015 * Math.max(0, i - 10)); }
 
-  function setMode(m) { S.mode = m; S.modeTime = 0; S.hoverAction = null; }
+  function setMode(m) {
+    S.mode = m; S.modeTime = 0; S.hoverAction = null;
+    Sound.music(m === 'play' || m === 'paused' || m === 'clear' ? 'game' : 'menu');
+  }
+  function showToast(t) { if (!S.toast) S.toast = t; else S.toastQueue.push(t); }
+
+  // Missions, level-ups: celebrate as they happen.
+  Progress.onReward((r) => {
+    if (r.kind === 'mission') {
+      showToast({ text: 'MISSION COMPLETE', sub: `${r.text.toUpperCase()} · +${r.xp} XP`, t: 3.5, color: '#3dff8a' });
+    } else if (r.kind === 'levelup') {
+      showToast({ text: `LEVEL UP! LV ${r.level}`, sub: r.title, t: 3.5, color: '#ffe066' });
+    }
+    Sound.reward();
+    Haptics.reward();
+  });
+
+  function startDaily() {
+    const d = Progress.daily();
+    if (d.done || d.attemptsLeft <= 0) {
+      const hrs = Math.max(1, Math.ceil(d.msLeft / 3600000));
+      showToast({ text: d.done ? 'DAILY DONE ✓' : 'NO ATTEMPTS LEFT', sub: `A NEW CHALLENGE ARRIVES IN ${hrs}H`, t: 3, color: '#ffd700' });
+      return;
+    }
+    Progress.startDailyAttempt();
+    startGame('normal', { seed: d.seed, mod: d.mod });
+  }
 
   // ---------- Game flow ----------
-  function startGame(diff) {
+  function startGame(diff, daily = null) {
     S.diff = diff;
-    S.menuSel = DIFF_KEYS.indexOf(diff);
+    S.daily = daily;
+    S.dailyResult = null;
+    S.xpResult = null;
+    Progress.runStart();
+    if (!daily) S.menuSel = DIFF_KEYS.indexOf(diff);
     S.score = 0;
     S.lives = MAX_LIVES;
     S.newHigh = false;
     S.passedBest = false;
-    S.prevBest = highScores[diff];
+    S.prevBest = daily ? 0 : highScores[diff];
     S.runId++;
     S.beatChallenge = false;
     if (Account.expiringSoon() && !S.warnedExpiry) {
@@ -247,7 +290,7 @@
   function loadLevel(i) {
     S.level = i;
     S.bricks = [];
-    const lvl = getLevel(i);
+    const lvl = S.daily ? dailyLevel() : getLevel(i);
     lvl.rows.forEach((row, r) => {
       [...row].forEach((ch, c) => {
         if (ch === '.') return;
@@ -269,8 +312,13 @@
     S.lastLeftCall = 0;
     S.paddle.x = S.paddle.target = W / 2;
     resetBall();
-    checkLevelUnlocks(i + 1);
-    S.banner = { text: `LEVEL ${i + 1}`, sub: (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
+    if (S.daily) {
+      S.banner = { text: 'DAILY CHALLENGE', sub: `${S.daily.mod.name} · ${S.daily.mod.desc.toUpperCase()}`, t: 2.6, max: 2.6 };
+    } else {
+      checkLevelUnlocks(i + 1);
+      Progress.track('level', i + 1);
+      S.banner = { text: `LEVEL ${i + 1}`, sub: (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
+    }
     setMode('play');
   }
 
@@ -282,14 +330,16 @@
   function paddleWidth() {
     if (S.effects.mega) return 230;
     if (S.effects.wide) return 160;
-    if (S.effects.shrink) return 64;
-    return 100;
+    const base = dmod('tiny') ? 72 : 100;
+    if (S.effects.shrink) return Math.round(base * 0.64);
+    return base;
   }
 
   function ballSpeed(b) {
     let s = BASE_SPEED * DIFFS[S.diff].speed * levelSpeed(S.level) * b.boost;
     if (S.effects.slow) s *= 0.65;
     if (S.effects.speed) s *= 1.35;
+    if (dmod('speed')) s *= 1.22;
     return s;
   }
 
@@ -318,6 +368,7 @@
     S.lasers = [];
     S.shake = 12;
     Sound.lose();
+    Haptics.lose();
     if (S.lives <= 0) {
       gameOver(false);
     } else {
@@ -382,14 +433,20 @@
   };
 
   function gameOver(won) {
-    recordHigh();
-    if (S.score > 0 && Account.state.kind) submitRun();
+    Progress.track('score', S.score);
+    S.xpResult = Progress.runEnd(S.score, S.daily ? 1 : S.level + 1);
+    if (!S.daily) {
+      recordHigh();
+      if (S.score > 0 && Account.state.kind) submitRun();
+    }
     if (won) { Sound.clear(); setMode('win'); }
     else { Sound.over(); setMode('over'); }
   }
 
   function levelClear() {
     S.perfect = !S.lostThisLevel;
+    if (S.perfect && !S.daily) Progress.track('perfect');
+    if (DIFFS[S.diff].timed) Progress.track('berserk_left', Math.floor(S.timeLeft));
     S.timeBonus = DIFFS[S.diff].timed ? Math.ceil(Math.max(0, S.timeLeft)) * 50 : 0;
     const bonus = 250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0) + S.timeBonus;
     S.score += bonus;
@@ -401,6 +458,16 @@
         life: rand(0.8, 1.6), max: 1.6, color: pick(['#29f0ff', '#ff3df2', '#ffb319', '#3dff8a']), size: rand(2, 4),
       });
     }
+    Progress.track('score', S.score);
+    Haptics.clear();
+    wave(W / 2, H * 0.35, 420, '#3dff8a', 0.8);
+    if (S.daily) {
+      S.xpResult = Progress.runEnd(S.score, 1);
+      S.dailyResult = Progress.completeDaily();
+      Sound.reward();
+      setMode('dailywin');
+      return;
+    }
     Sound.clear();
     setMode('clear');
   }
@@ -411,9 +478,39 @@
   }
 
   function burst(x, y, color, n = 14, speed = 220) {
+    if (lowFx) n = Math.ceil(n / 2);
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2), s = rand(speed * 0.3, speed);
       S.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rand(0.3, 0.7), max: 0.7, color, size: rand(1.5, 3.5) });
+    }
+  }
+
+  // Spinning brick fragments.
+  function shards(x, y, color, n = 7) {
+    if (lowFx) n = 3;
+    for (let i = 0; i < n; i++) {
+      const a = rand(-Math.PI, 0), s = rand(80, 260);
+      S.particles.push({ x: x + rand(-18, 18), y: y + rand(-6, 6), vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40,
+        life: rand(0.5, 0.9), max: 0.9, color, size: rand(4, 8), shard: true, rot: rand(0, 6), vr: rand(-14, 14), h: rand(2, 4) });
+    }
+  }
+
+  function wave(x, y, max, color, life = 0.45) {
+    S.waves.push({ x, y, r: 4, max, color, life, total: life });
+  }
+
+  // Premium skins' signature effect when a brick breaks.
+  function flairBurst(x, y) {
+    const f = Skins.current().flair;
+    if (!f) return;
+    if (f === 'rainbow') {
+      for (let i = 0; i < 10; i++) burst(x, y, `hsl(${Math.floor(rand(0, 360))},100%,62%)`, 1, 260);
+    } else if (f === 'plasma') {
+      burst(x, y, '#ffffff', 5, 380);
+      burst(x, y, '#b48aff', 6, 300);
+    } else if (f === 'shadow') {
+      wave(x, y, 34, '#ffffff', 0.3);
+      burst(x, y, '#6b6b80', 8, 120);
     }
   }
 
@@ -423,11 +520,12 @@
     return BRICK_COLORS[Math.min(br.maxHp, 3)];
   }
 
-  function hitBrick(br, force) {
+  function hitBrick(br, force, src = 'ball') {
     if (!br.alive) return;
     if (br.type === 'metal') {
       br.flash = 0.15;
       Sound.metal();
+      Haptics.metal();
       burst(br.x + br.w / 2, br.y + br.h / 2, '#dfe6f5', 5, 120);
       return;
     }
@@ -436,15 +534,20 @@
     if (br.hp > 0) {
       Sound.hit();
       burst(br.x + br.w / 2, br.y + br.h / 2, brickColor(br), 5, 120);
+      shards(br.x + br.w / 2, br.y + br.h / 2, brickColor(br), 2);
       return;
     }
-    destroyBrick(br);
+    destroyBrick(br, src);
   }
 
-  function destroyBrick(br) {
+  function destroyBrick(br, src = 'ball') {
     if (!br.alive || br.type === 'metal') return;
     br.alive = false;
     S.combo++;
+    Progress.track('brick');
+    if (src === 'laser') Progress.track('laser_brick');
+    if (src === 'fire') Progress.track('fire_brick');
+    Progress.track('combo', S.combo);
     const mult = Math.min(8, 1 + Math.floor((S.combo - 1) / 3));
     const base = br.type === 'bomb' ? 25 : br.maxHp * 10;
     const pts = base * mult;
@@ -452,21 +555,32 @@
     const cx = br.x + br.w / 2, cy = br.y + br.h / 2;
     if (mult > 1) addFloater(cx, cy, `+${pts} x${mult}`, '#ffe066', 13);
     burst(cx, cy, brickColor(br));
+    shards(cx, cy, brickColor(br));
+    flairBurst(cx, cy);
     Sound.brick(S.combo);
+    Haptics.brick();
     if (S.combo >= 15) tryUnlock('frost');
     if (S.combo % 10 === 0) {
       addFloater(W / 2, H * 0.45, `${S.combo} COMBO!`, '#ff3df2', 26);
       S.shake = Math.max(S.shake, 6);
+      S.hitstop = Math.max(S.hitstop, 0.04);
+      Haptics.combo();
     }
     maybeDrop(cx, cy);
     if (br.type === 'bomb') {
-      S.shake = Math.max(S.shake, 10);
+      S.shake = Math.max(S.shake, 14);
+      S.hitstop = Math.max(S.hitstop, 0.07);
       Sound.explode();
+      Haptics.explode();
+      Progress.track('bomb');
       burst(cx, cy, '#ff8a3d', 30, 340);
+      burst(cx, cy, '#ffe066', 14, 200);
+      wave(cx, cy, 120, '#ff8a3d', 0.5);
+      wave(cx, cy, 70, '#ffffff', 0.3);
       for (const o of S.bricks) {
         if (!o.alive || o === br) continue;
         if (Math.abs(o.x - br.x) <= BRICK_W + GAP + 1 && Math.abs(o.y - br.y) <= BRICK_H + GAP + 1) {
-          destroyBrick(o);
+          destroyBrick(o, 'bomb');
         }
       }
     }
@@ -482,8 +596,9 @@
   }
 
   function maybeDrop(x, y) {
-    if (Math.random() > DIFFS[S.diff].drop) return;
-    let type = Math.random() < 0.08 ? 'mystery' : rollPower();
+    const rate = dmod('surge') ? Math.min(0.6, DIFFS[S.diff].drop * 2) : DIFFS[S.diff].drop;
+    if (Math.random() > rate) return;
+    let type = dmod('mystery') || Math.random() < 0.08 ? 'mystery' : rollPower();
     for (let i = 0; i < 6 && type === S.lastDrop && type !== 'mystery'; i++) type = rollPower(); // no back-to-back repeats
     S.lastDrop = type;
     // Capsules fall at different speeds so catches can't be timed by habit.
@@ -492,14 +607,16 @@
 
   // ---------- Power-ups ----------
   function applyPower(type) {
+    Progress.track('powerup');
     if (type === 'mystery') {
+      Progress.track('mystery');
       // Reveal: anything can be inside, good or bad.
       addFloater(S.paddle.x, PADDLE_Y - 52, '?  MYSTERY  ?', '#ffffff', 13);
       type = rollPower();
     }
     const p = POWER[type];
     addFloater(S.paddle.x, PADDLE_Y - 24, p.name, p.good ? '#3dff8a' : '#ff3d6e', 16);
-    if (p.good) Sound.good(); else Sound.bad();
+    if (p.good) { Sound.good(); Haptics.good(); } else { Sound.bad(); Haptics.bad(); }
     burst(S.paddle.x, PADDLE_Y, p.good ? '#3dff8a' : '#ff3d6e', 16, 180);
     if (p.good) S.score += 50;
 
@@ -561,6 +678,9 @@
       S.combo = 0;
       if (S.effects.magnet) { b.stuck = true; b.offset = b.x - p.x; }
       Sound.paddle();
+      Haptics.paddle();
+      S.paddleSquash = 1;
+      wave(b.x, PADDLE_Y, 28, Skins.current().trail, 0.25);
       return true;
     }
 
@@ -585,7 +705,7 @@
         else { const sy = dy >= 0 ? 1 : -1; b.vy = sy * Math.abs(b.vy); b.y += sy * py; }
         keepAngleSane(b);
       }
-      hitBrick(br, pass);
+      hitBrick(br, pass, pass ? 'fire' : 'ball');
       return !pass;
     }
     return false;
@@ -605,6 +725,10 @@
     S.floaters = S.floaters.filter((f) => f.t > 0);
     S.shake = Math.max(0, S.shake - 40 * dt);
     if (S.toast) { S.toast.t -= realDt; if (S.toast.t <= 0) S.toast = null; }
+    if (!S.toast && S.toastQueue.length) S.toast = S.toastQueue.shift();
+    for (const w of S.waves) { w.life -= realDt; w.r += (w.max - w.r) * Math.min(1, realDt * 9); }
+    S.waves = S.waves.filter((w) => w.life > 0);
+    S.paddleSquash = Math.max(0, S.paddleSquash - realDt * 6);
 
     if (S.mode !== 'play') {
       // A guest's 12 hours can run out while the game is open; ask for a new name.
@@ -692,7 +816,7 @@
             (!hit || br.y > hit.y)) hit = br;
       }
       if (hit) {
-        hitBrick(hit, false);
+        hitBrick(hit, false, 'laser');
         l.dead = true;
       }
     }
@@ -880,22 +1004,36 @@
     }
   }
 
+  // Skin colour, with premium skins animating (rainbow cycles, plasma pulses).
+  function skinPaddleColor(skin) {
+    if (skin.flair === 'rainbow') return `hsl(${Math.floor(S.time * 140) % 360},100%,60%)`;
+    if (skin.flair === 'plasma') return `hsl(${Math.round(295 + 25 * Math.sin(S.time * 7))},100%,${Math.round(62 + 8 * Math.sin(S.time * 11))}%)`;
+    return skin.paddle;
+  }
+
   function drawPaddle() {
     const p = S.paddle;
-    let color = Skins.current().paddle;
+    const skin = Skins.current();
+    let color = skinPaddleColor(skin);
+    const effectColor = S.effects.magnet || S.effects.laser || S.effects.reverse;
     if (S.effects.magnet) color = '#3dff8a';
     if (S.effects.laser) color = '#ff5a5a';
     if (S.effects.reverse) color = '#ff3df2';
-    const x = p.x - p.w / 2;
-    ctx.shadowColor = color;
+    // Squash when the ball lands, then spring back.
+    const sq = S.paddleSquash;
+    const pw = p.w * (1 + 0.1 * sq), ph = PADDLE_H * (1 - 0.35 * sq);
+    const x = p.x - pw / 2, y = PADDLE_Y + (PADDLE_H - ph);
+    const shadow = skin.flair === 'shadow' && !effectColor;
+    ctx.shadowColor = shadow ? '#ffffff' : color;
     ctx.shadowBlur = 20;
-    rr(x, PADDLE_Y, p.w, PADDLE_H, 7);
-    const g = ctx.createLinearGradient(0, PADDLE_Y, 0, PADDLE_Y + PADDLE_H);
-    g.addColorStop(0, '#ffffff');
+    rr(x, y, pw, ph, Math.min(7, ph / 2));
+    const g = ctx.createLinearGradient(0, y, 0, y + ph);
+    g.addColorStop(0, shadow ? '#3a3a55' : '#ffffff');
     g.addColorStop(0.35, color);
-    g.addColorStop(1, '#14143a');
+    g.addColorStop(1, shadow ? '#000000' : '#14143a');
     ctx.fillStyle = g;
     ctx.fill();
+    if (shadow) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.stroke(); }
     ctx.shadowBlur = 0;
     if (S.effects.laser) {
       ctx.fillStyle = '#ff5a5a';
@@ -908,13 +1046,17 @@
     const fire = !!S.effects.fire;
     const skin = Skins.current();
     const color = fire ? '#ff8a3d' : skin.ball;
-    const trail = fire ? '#ff5a1f' : skin.trail;
+    const trail = fire ? '#ff5a1f' : skin.flair === 'rainbow' ? skinPaddleColor(skin) : skin.trail;
     for (const b of S.balls) {
+      if (!fire && skin.flair === 'plasma' && !b.stuck && Math.random() < 0.35) {
+        S.particles.push({ x: b.x, y: b.y, vx: rand(-90, 90), vy: rand(-90, 90), life: 0.25, max: 0.25, color: Math.random() < 0.5 ? '#ffffff' : '#b48aff', size: rand(1.5, 2.5) });
+      }
       for (let i = 0; i < b.trail.length; i++) {
         const t = b.trail[i];
         const k = i / b.trail.length;
-        ctx.globalAlpha = k * (fire ? 0.5 : 0.25);
-        ctx.fillStyle = trail;
+        ctx.globalAlpha = k * (fire ? 0.5 : skin.flair ? 0.45 : 0.25);
+        ctx.fillStyle = !fire && skin.flair === 'rainbow' ? `hsl(${(Math.floor(S.time * 140) + i * 30) % 360},100%,60%)`
+          : !fire && skin.flair === 'shadow' ? 'rgba(170,170,190,1)' : trail;
         ctx.beginPath(); ctx.arc(t.x, t.y, BALL_R * (0.4 + k * 0.6), 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -972,7 +1114,22 @@
     for (const pt of S.particles) {
       ctx.globalAlpha = Math.max(0, pt.life / pt.max);
       ctx.fillStyle = pt.color;
-      ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+      if (pt.shard) {
+        pt.rot += pt.vr * 0.016;
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(pt.rot);
+        ctx.fillRect(-pt.size / 2, -pt.h / 2, pt.size, pt.h);
+        ctx.restore();
+      } else {
+        ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+      }
+    }
+    for (const w of S.waves) {
+      ctx.globalAlpha = Math.max(0, w.life / w.total) * 0.8;
+      ctx.strokeStyle = w.color;
+      ctx.lineWidth = 3 * (w.life / w.total) + 1;
+      ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -1003,7 +1160,8 @@
 
     text('SCORE', 20, 18, 10, 'rgba(230,230,255,0.55)', 'left', 500);
     glowText(String(S.score), 20, 40, 20, '#29f0ff', 8, 'left');
-    text(isEndless(S.level) ? `ENDLESS · LEVEL ${S.level + 1}` : `LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, isEndless(S.level) ? '#ff3df2' : 'rgba(230,230,255,0.55)', 'center', 500);
+    if (S.daily) text(`DAILY · ${S.daily.mod.name}`, W / 2, 18, 10, '#ffd700', 'center', 600);
+    else text(isEndless(S.level) ? `ENDLESS · LEVEL ${S.level + 1}` : `LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, isEndless(S.level) ? '#ff3df2' : 'rgba(230,230,255,0.55)', 'center', 500);
     if (DIFFS[S.diff].timed) {
       const t = Math.max(0, Math.ceil(S.timeLeft));
       const urgent = t <= 10 && S.clockRunning;
@@ -1136,8 +1294,8 @@
     }
     dim(0.45);
     const pulse = 18 + 8 * Math.sin(S.time * 2.5);
-    glowText('BRICK', W / 2, 118, 68, '#29f0ff', pulse);
-    glowText('SMASHER', W / 2, 186, 52, '#ff3df2', pulse);
+    glowText('BRICK', W / 2, 104, 62, '#29f0ff', pulse);
+    glowText('SMASHER', W / 2, 166, 48, '#ff3df2', pulse);
 
     // Who's playing (tap to sign up / manage account)
     const st = Account.state;
@@ -1148,33 +1306,72 @@
     const pillColor = st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.35)';
     ctx.font = font(11, 600);
     const whoW = Math.min(440, ctx.measureText(who).width + 48);
-    rr(W / 2 - whoW / 2, 236, whoW, 32, 16);
+    rr(W / 2 - whoW / 2, 204, whoW, 32, 16);
     ctx.fillStyle = warn ? `rgba(255,179,25,${0.12 + 0.08 * Math.sin(S.time * 4)})`
       : S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
     ctx.fill();
     ctx.strokeStyle = pillColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    text(who, W / 2, 252, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
-    S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 32, action: 'account' });
+    text(who, W / 2, 220, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
+    S.buttons.push({ x: W / 2 - whoW / 2, y: 204 + S.btnOffset, w: whoW, h: 32, action: 'account' });
 
     const ch = Share.challenge;
     if (ch) {
-      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 298, 12,
+      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 256, 12,
         DIFFS[ch.diff].color, 8 + 6 * Math.sin(S.time * 4));
     } else {
-      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 298, 12, 'rgba(230,230,255,0.7)', 'center', 500);
+      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 256, 12, 'rgba(230,230,255,0.7)', 'center', 500);
     }
 
+    // Daily challenge
+    const d = Progress.daily();
+    const hrs = Math.max(1, Math.ceil(d.msLeft / 3600000));
+    const dsub = d.done ? `DONE ✓ · NEW ONE IN ${hrs}H` : d.attemptsLeft <= 0 ? `NO ATTEMPTS LEFT · NEW ONE IN ${hrs}H`
+      : `${d.mod.name} · ${d.attemptsLeft}/${d.attempts} ATTEMPTS`;
+    button(d.streak > 0 ? `DAILY · STREAK ${d.streak}` : 'DAILY CHALLENGE', W / 2 - 140, 276, 280, 58,
+      d.done ? '#8f7d2e' : '#ffd700', 'daily', dsub, !d.done && d.attemptsLeft > 0 && Math.sin(S.time * 3) > 0.6);
+
     DIFF_KEYS.forEach((k, i) => {
-      const d = DIFFS[k];
+      const dd = DIFFS[k];
       const best = highScores[k];
-      const sub = best > 0 ? `BEST ${best}` : (d.timed ? d.blurb : null);
-      button(d.label, W / 2 - 140, 322 + i * 72, 280, 60, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
+      const sub = best > 0 ? `BEST ${best}` : (dd.timed ? dd.blurb : null);
+      button(dd.label, W / 2 - 140, 346 + i * 62, 280, 52, dd.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    button('LEADERBOARD', W / 2 - 140, 626, 136, 46, '#ffe066', 'board');
-    button('SKINS', W / 2 + 4, 626, 136, 46, '#ff3df2', 'skins');
+    button('RANKS', W / 2 - 140, 602, 88, 44, '#ffe066', 'board');
+    button('MISSIONS', W / 2 - 44, 602, 88, 44, '#3dff8a', 'missions');
+    button('SKINS', W / 2 + 52, 602, 88, 44, '#ff3df2', 'skins');
+
+    // Player level (tap for missions)
+    const lv = Progress.levelInfo();
+    text(`LV ${lv.level} · ${lv.title}`, W / 2 - 140, 670, 11, '#ffe066', 'left', 700);
+    text(`${lv.into}/${lv.need} XP`, W / 2 + 140, 670, 10, 'rgba(230,230,255,0.55)', 'right', 500);
+    rr(W / 2 - 140, 682, 280, 8, 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fill();
+    if (lv.into > 0) {
+      rr(W / 2 - 140, 682, Math.max(8, 280 * lv.into / lv.need), 8, 4);
+      const xg = ctx.createLinearGradient(W / 2 - 140, 0, W / 2 + 140, 0);
+      xg.addColorStop(0, '#29f0ff'); xg.addColorStop(1, '#3dff8a');
+      ctx.fillStyle = xg; ctx.fill();
+    }
+    S.buttons.push({ x: W / 2 - 150, y: 655 + S.btnOffset, w: 300, h: 45, action: 'missions' });
+  }
+
+  // Gear icon (opens settings: music, sound, vibration)
+  function drawGear(x, y) {
+    const cx = x + 20, cy = y + 20;
+    ctx.fillStyle = 'rgba(230,230,255,0.8)';
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + S.time * 0.3;
+      const r = i % 2 === 0 ? 15 : 11;
+      ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#0b0c1e';
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
+    S.buttons.push({ x: x - 6, y: y - 6 + S.btnOffset, w: 52, h: 52, action: 'settings' });
   }
 
   // Small speaker icon (tap to mute / unmute)
@@ -1205,7 +1402,7 @@
     glowText('PAUSED', W / 2, 260, 48, '#29f0ff', 22);
     button('RESUME', W / 2 - 120, 330, 240, 60, '#3dff8a', 'resume');
     button('MAIN MENU', W / 2 - 120, 410, 240, 60, '#ff3d6e', 'menu');
-    drawSoundButton(500);
+    button('SETTINGS', W / 2 - 120, 490, 240, 50, '#c8c8e6', 'settings');
   }
 
   function drawClear() {
@@ -1221,6 +1418,7 @@
 
   function drawEnd() {
     dim(0.8);
+    if (S.daily) { drawDailyFail(); return; }
     glowText('GAME OVER', W / 2, 190, 52, '#ff3d6e', 26);
     text(`LEVEL ${S.level + 1}${isEndless(S.level) ? ' · ENDLESS' : ''} · ${DIFFS[S.diff].label}`, W / 2, 240, 13, 'rgba(230,230,255,0.75)', 'center', 500);
     glowText(String(S.score), W / 2, 305, 52, '#29f0ff', 18);
@@ -1248,10 +1446,13 @@
           text(`GUEST ENDS IN ${guestTimeLeft(Account.state.expires)} · SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
         }
       } else {
-        glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y, 15, DIFFS[S.diff].color, 10);
+        glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y - 6, 15, DIFFS[S.diff].color, 10);
       }
     } else if (S.rankState === 'sending') text('SUBMITTING SCORE…', W / 2, y, 12, 'rgba(230,230,255,0.6)', 'center', 500);
     else if (S.rankState === 'error') text(`SCORE NOT SAVED: ${S.rankError}`.toUpperCase().slice(0, 60), W / 2, y, 10, '#ff3d6e', 'center', 500);
+    if (S.xpResult && !(S.rank && S.rank.guest && Account.expiringSoon())) {
+      text(`+${S.xpResult.gained} XP · LV ${S.xpResult.after.level}`, W / 2, y + 16, 11, '#3dff8a', 'center', 600);
+    }
 
     if (S.modeTime > 0.5) {
       button('PLAY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', `start:${S.diff}`, null, true);
@@ -1262,6 +1463,47 @@
       if (guest) button('SIGN UP', W / 2 + 4, y2, 126, 48, '#3dff8a', 'signup');
       button('MAIN MENU', W / 2 - 130, y2 + 60, 260, 48, '#ff3df2', 'menu');
       if (HAS_KEYBOARD) text('SPACE TO PLAY AGAIN', W / 2, y2 + 128, 10, 'rgba(230,230,255,0.4)', 'center', 500);
+    }
+  }
+
+  function drawDailyFail() {
+    const d = Progress.daily();
+    glowText('DAILY FAILED', W / 2, 200, 46, '#ff3d6e', 24);
+    text(S.daily.mod.name, W / 2, 248, 13, '#ffd700', 'center', 600);
+    glowText(String(S.score), W / 2, 305, 44, '#29f0ff', 14);
+    text(d.attemptsLeft > 0 ? `${d.attemptsLeft} ATTEMPT${d.attemptsLeft === 1 ? '' : 'S'} LEFT TODAY` : 'NO ATTEMPTS LEFT TODAY. BACK TOMORROW!',
+      W / 2, 355, 14, d.attemptsLeft > 0 ? '#ffe066' : 'rgba(230,230,255,0.7)', 'center', 600);
+    if (d.streak > 0) text(`YOUR ${d.streak}-DAY STREAK IS STILL SAFE TODAY`, W / 2, 385, 11, '#ff8a3d', 'center', 600);
+    if (S.modeTime > 0.5) {
+      if (d.attemptsLeft > 0) button('TRY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', 'daily', null, true);
+      button('MAIN MENU', W / 2 - 130, d.attemptsLeft > 0 ? 505 : 425, 260, 52, '#ff3df2', 'menu', null, d.attemptsLeft <= 0);
+    }
+  }
+
+  function drawDailyWin() {
+    dim(0.78);
+    const r = S.dailyResult || {};
+    glowText('DAILY COMPLETE!', W / 2, 170, 40, '#ffd700', 24 + 6 * Math.sin(S.time * 4));
+    glowText(`STREAK: ${r.streak || 1} DAY${r.streak === 1 ? '' : 'S'}`, W / 2, 225, 22, '#ff8a3d', 14);
+    if (r.badge) glowText(`NEW BADGE: ${r.badge}`, W / 2, 262, 14, '#ffe066', 10);
+    text(`+${(r.xp || 0) + (S.xpResult ? S.xpResult.gained : 0)} XP`, W / 2, 296, 16, '#3dff8a', 'center', 700);
+    const skin = r.skin && Skins.byId(r.skin);
+    if (skin) {
+      rr(W / 2 - 170, 322, 340, 118, 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+      ctx.strokeStyle = '#3dff8a'; ctx.lineWidth = 1.5; ctx.stroke();
+      text('YOUR REWARD: 24-HOUR FREE TRIAL', W / 2, 344, 11, '#3dff8a', 'center', 600);
+      glowText(`${skin.name.toUpperCase()} SKIN`, W / 2, 374, 22, skinPaddleColor(skin), 14);
+      text(skin.perk.toUpperCase(), W / 2, 402, 9.5, 'rgba(230,230,255,0.7)', 'center', 500);
+      // Mini paddle preview
+      const c = skinPaddleColor(skin);
+      ctx.shadowColor = skin.flair === 'shadow' ? '#ffffff' : c; ctx.shadowBlur = 14;
+      rr(W / 2 - 40, 420, 80, 9, 4.5); ctx.fillStyle = c; ctx.fill(); ctx.shadowBlur = 0;
+    }
+    if (S.modeTime > 0.6) {
+      if (skin && Skins.current().id !== skin.id) button('EQUIP IT NOW', W / 2 - 130, 462, 260, 60, '#3dff8a', 'equipTrial', null, true);
+      else if (skin) text('EQUIPPED ✓', W / 2, 492, 16, '#3dff8a', 'center', 700);
+      button('MAIN MENU', W / 2 - 130, 538, 260, 52, '#ff3df2', 'menu');
     }
   }
 
@@ -1283,7 +1525,7 @@
     };
     if (S.mode === 'menu') {
       centred(drawMenu);
-      drawSpeaker(W - 54, 18); // pinned to the top corner of the screen
+      drawGear(W - 54, 18); // pinned to the top corner of the screen
       drawParticles();
       drawToast();
       return;
@@ -1301,6 +1543,7 @@
     if (S.mode === 'paused') centred(drawPaused);
     if (S.mode === 'clear') centred(drawClear);
     if (S.mode === 'over' || S.mode === 'win') centred(drawEnd);
+    if (S.mode === 'dailywin') centred(drawDailyWin);
   }
 
   // ---------- Input ----------
@@ -1313,6 +1556,12 @@
       case 'menu': setMode('menu'); S.particles = []; return true;
       case 'next': loadLevel(S.level + 1); return true;
       case 'mute': Sound.toggleMute(); return true;
+      case 'settings': Panels.openSettings(); return true;
+      case 'missions': Panels.openProgress(); return true;
+      case 'daily': requireIdentity(startDaily); return true;
+      case 'equipTrial':
+        if (S.dailyResult && S.dailyResult.skin) { Skins.equip(S.dailyResult.skin); Sound.good(); Haptics.good(); }
+        return true;
       case 'board': Leaderboard.open({ diff: S.mode === 'menu' ? DIFF_KEYS[S.menuSel] : S.diff }); return true;
       case 'skins': Skins.open(); return true;
       case 'account': Account.open({ required: !Account.state.kind }); return true;
@@ -1372,7 +1621,13 @@
       case 'play': launch(); break;
       case 'paused': setMode('play'); break;
       case 'clear': if (S.modeTime > 0.6) loadLevel(S.level + 1); break;
-      case 'over': case 'win': if (S.modeTime > 0.5) requireIdentity(() => startGame(S.diff)); break;
+      case 'over': case 'win':
+        if (S.modeTime > 0.5) {
+          if (S.daily) { if (Progress.daily().attemptsLeft > 0) startDaily(); else setMode('menu'); }
+          else requireIdentity(() => startGame(S.diff));
+        }
+        break;
+      case 'dailywin': if (S.modeTime > 0.6) setMode('menu'); break;
     }
   }
 
@@ -1430,6 +1685,7 @@
     last = now;
     let dt = raw;
     if (S.slowmo > 0) { S.slowmo -= raw; dt = raw * 0.3; }
+    if (S.hitstop > 0) { S.hitstop -= raw; dt = 0; } // a split-second freeze sells big hits
     update(dt, raw);
     draw();
     requestAnimationFrame(frame);
@@ -1437,6 +1693,7 @@
   requestAnimationFrame(frame);
 
   Account.init(); // returning players resume; new visitors get a guest name automatically
+  Sound.music('menu'); // starts after the first tap (browsers need a gesture for audio)
 
   // Hook for automated testing.
   window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx, maybeDrop };

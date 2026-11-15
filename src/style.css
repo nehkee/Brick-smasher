@@ -283,3 +283,51 @@ html, body {
   .lb button.ghost.save { font-size: 13px; }
 }
 @media (max-width: 400px) { .lb h2 { font-size: 18px; padding: 0 34px; } }
+
+/* ---------- Settings ---------- */
+.toggles { display: flex; flex-direction: column; gap: 10px; }
+.toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; font: inherit; font-size: 14px; color: #e6e6ff;
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid rgba(230, 230, 255, 0.25);
+  border-radius: 10px; cursor: pointer;
+}
+.toggle b { font-weight: 700; color: #ff3d6e; }
+.toggle.on { border-color: #3dff8a; }
+.toggle.on b { color: #3dff8a; }
+.toggle:disabled { opacity: 0.45; cursor: default; }
+#vibrate-note { margin-top: 10px; }
+
+/* ---------- Missions ---------- */
+#progress-panel .lb-card { overflow-y: auto; }
+.pp-title { font-size: 16px; color: #ffe066; text-align: center; margin-bottom: 8px; }
+.pp-sub { font-size: 11px; color: rgba(230, 230, 255, 0.6); text-align: center; margin-top: 6px; line-height: 1.4; }
+.pp-label { font-size: 12px; color: #ff3df2; margin: 16px 0 8px; text-align: center; }
+.xpbar, .mbar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.xpbar span, .mbar span { display: block; height: 100%; background: linear-gradient(90deg, #29f0ff, #3dff8a); }
+.mbar { height: 6px; margin-top: 8px; }
+#pp-missions { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#pp-missions li {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  padding: 12px; border-radius: 10px; border: 1.5px solid rgba(41, 240, 255, 0.35); background: rgba(41, 240, 255, 0.05);
+}
+#pp-missions .m-text { font-size: 12px; line-height: 1.4; }
+#pp-missions .m-xp { font-size: 12px; color: #3dff8a; margin-left: 8px; }
+#pp-missions .mbar { grid-column: 1 / -1; }
+#pp-missions .m-count { grid-column: 1 / -1; font-size: 10px; color: rgba(230, 230, 255, 0.5); margin-top: 4px; }
+#pp-streak { margin-top: 16px; text-align: center; }
+.streak-big { font-size: 18px; color: #ff8a3d; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.badge { font-size: 11px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(230, 230, 255, 0.2); color: rgba(230, 230, 255, 0.45); }
+.badge.got { color: #ffe066; border-color: #ffe066; }
+
+/* ---------- Skin trials / perks ---------- */
+.skin .trial { font-size: 9px; color: #3dff8a; }
+.skin.trialing { border-color: #3dff8a; }
+.skin .perk { font-size: 8.5px; line-height: 1.35; text-align: center; color: rgba(230, 230, 255, 0.6); min-height: 2.6em; }
+@media (min-width: 700px) and (min-height: 600px) {
+  .pp-title { font-size: 20px; }
+  #pp-missions .m-text, #pp-missions .m-xp { font-size: 14px; }
+  .pp-sub { font-size: 13px; }
+  .skin .perk { font-size: 10px; }
+}

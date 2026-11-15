@@ -23,6 +23,12 @@ hundred players a day and an active Today leaderboard).
 3. **Season pass (later)**
    - Monthly exclusive skins and ball trails for regular players.
 
+## Already in place (no money involved yet)
+
+- Premium skins have **flair only** (rainbow / plasma / shadow effects), never a gameplay boost, so the leaderboard stays fair.
+- Completing the daily challenge gives a **24-hour free trial** of a premium skin: try before you buy. When purchases are switched on, the trial card and skins panel are where the "keep it" button goes.
+- Free progression (XP, levels, titles, missions, streak badges) never runs out, so premium skins never need to be given away as rewards.
+
 ## Decided against
 
 - **Paying for power-ups:** it would make the game too easy, break leaderboard

@@ -49,6 +49,17 @@ Guests send a random guest id so two guests with the same name stay separate. Ea
 
 Six free skins are unlocked by playing (level 5, endless mode, 15-combo, level 20, 50,000 points). Three premium skins are shown with prices but can't be bought yet.
 
+## Progress, missions and the daily challenge
+
+- **XP and player levels** (no cap) with titles from Rookie to Brick God. XP comes from every run (score and levels reached), missions and the daily challenge.
+- **Missions**: three at a time, randomly generated from templates (bricks in a run, combos, laser kills, explosives, perfect clears, Berserk time, mystery capsules…). Completing one awards XP and rolls a new one, so they never run out.
+- **Daily challenge**: one generated level per UTC day, the same for everyone, with a daily twist (Speed Demon, Power Surge, Tiny Paddle, Mystery Box, Chain Reaction). 3 attempts per day; clearing it extends your streak, gives XP and a **24-hour free trial of a premium skin**. Streak badges at 3, 7, 14, 30, 50 and 100 days.
+- Guests keep progress for their 12 hours; accounts save it to `profiles.progress` via `save_progress()`.
+
+## Feel, sound and settings
+
+Brick shards, explosion shockwaves, a split-second freeze on big hits, paddle squash, phone vibration on Android (iPhones don't allow it for web pages), and original generated music (menu and gameplay tracks). The gear icon opens Settings to switch Music, Sound effects and Vibration on or off.
+
 ## Berserk mode
 
 A timed mode with its own leaderboard: a fast ball and 2:00 per level. The clock starts when the ball is launched, stops while paused, ticks in the last 10 seconds, and running out costs a try (the clock refills and the bricks stay). Seconds left when a level is cleared are worth 50 points each.

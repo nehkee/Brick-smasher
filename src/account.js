@@ -8,6 +8,7 @@ const Account = (() => {
   const ACCOUNT_DOMAIN = 'players.brick-smasher-liart.vercel.app';
   const GUEST_KEY = 'bs-guest';             // { name, expires, id } in localStorage
   const GUEST_SKINS_KEY = 'bs-guest-skins'; // shared with skins.js
+  const GUEST_PROGRESS_KEY = 'bs-guest-progress'; // shared with progress.js
   const GUEST_TTL_MS = 12 * 60 * 60 * 1000; // a guest identity lasts 12 hours
 
   // If the Supabase library failed to load, keep the game playable offline:
@@ -42,7 +43,7 @@ const Account = (() => {
     let g = null;
     try { g = JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { g = null; }
     if (!g || typeof g.name !== 'string' || !(g.expires > Date.now())) {
-      if (g) lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
+      if (g) lsRemove(GUEST_KEY, GUEST_SKINS_KEY, GUEST_PROGRESS_KEY);
       return null;
     }
     if (!/^[a-z0-9]{16,40}$/.test(g.id || '')) {
@@ -63,7 +64,7 @@ const Account = (() => {
   }
 
   async function loadProfile(user) {
-    const { data, error } = await client.from('profiles').select('username, skin, unlocked_skins').eq('id', user.id).single();
+    const { data, error } = await client.from('profiles').select('username, skin, unlocked_skins, progress').eq('id', user.id).single();
     if (error) throw error;
     state.kind = 'account';
     state.name = data.username;
@@ -108,7 +109,7 @@ const Account = (() => {
     const prev = savedGuest();
     const expires = prev ? prev.expires : Date.now() + GUEST_TTL_MS;
     const id = prev ? prev.id : newGuestId();
-    if (!prev) lsRemove(GUEST_SKINS_KEY);
+    if (!prev) lsRemove(GUEST_SKINS_KEY, GUEST_PROGRESS_KEY);
     try { localStorage.setItem(GUEST_KEY, JSON.stringify({ name, expires, id })); } catch (e) {}
     state.kind = 'guest'; state.name = name; state.profile = null; state.expires = expires; state.guestId = id;
     emit();
@@ -223,7 +224,7 @@ const Account = (() => {
   // Called regularly by the game: ends a guest identity once its 12 hours are up.
   function checkGuestExpiry() {
     if (state.kind === 'guest' && !(state.expires > Date.now())) {
-      lsRemove(GUEST_KEY, GUEST_SKINS_KEY);
+      lsRemove(GUEST_KEY, GUEST_SKINS_KEY, GUEST_PROGRESS_KEY);
       state.kind = null; state.name = null; state.expires = null; state.guestId = null;
       emit();
       startAutoGuest(); // straight into a fresh guest identity
