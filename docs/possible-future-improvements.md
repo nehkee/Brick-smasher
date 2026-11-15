@@ -140,7 +140,7 @@ On-screen words that celebrate great play, like a puzzle game's "praise" pop-ups
 - Website security headers: content security policy, no embedding by other sites, nosniff, referrer and permissions policies; HTTPS enforced.
 - `docs/`, `supabase/` and README are not published on the website (they stay on GitHub).
 
-**Owner action (1 minute):** in Supabase → Authentication → Sign In / Providers, switch off **"Allow new users to sign up"**. Brick Smasher's own sign-up keeps working (it creates accounts through the admin API), but it stops anyone abusing Supabase's built-in sign-up to send confirmation emails to strangers.
+- Supabase's built-in sign-up is **switched off** (done by the owner, verified 15 Nov 2026). Brick Smasher's own sign-up still works through the signup function, so nobody can abuse the built-in one to send confirmation emails to strangers.
 
 **Still to do (not built yet)**
 1. **Account deletion inside the game.** Required by Apple for any app with sign-up, and by privacy laws in many places. **Must be done before an app-store launch.** A "Delete account" button in the account panel that removes the profile, scores and login.
