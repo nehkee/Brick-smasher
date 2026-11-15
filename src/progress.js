@@ -78,7 +78,8 @@ const Progress = (() => {
   });
 
   // ---------- XP and levels ----------
-  const need = (lvl) => 100 + (lvl - 1) * 60; // XP to go from lvl to lvl + 1
+  // XP to go from lvl to lvl + 1. Level 10 takes about 4,600 XP: a few days of regular play.
+  const need = (lvl) => 150 + (lvl - 1) * 90;
   function levelInfo(xp = p.xp) {
     let lvl = 1, rest = xp;
     while (rest >= need(lvl)) { rest -= need(lvl); lvl++; }
@@ -181,16 +182,22 @@ const Progress = (() => {
       p.badges.push(`streak${p.streak}`);
       badge = `${p.streak}-DAY STREAK`;
     }
-    // Reward: a premium skin to try for 24 hours (one you're not already trying).
-    const premium = Skins.list.filter((s) => s.premium).map((s) => s.id);
-    const fresh = premium.filter((id) => !(trialLeft(id) > 0));
-    const pool = fresh.length ? fresh : premium;
-    const skin = pool[Math.floor(Math.random() * pool.length)];
-    p.trials[skin] = Date.now() + TRIAL_MS;
-    const xp = 300 + 50 * Math.min(p.streak, 10);
+    // Reward: from player level 10, a premium skin to try for 24 hours (one you're
+    // not already trying). Before level 10 there are no skins at all, so bonus XP instead.
+    let skin = null, noTrialBonus = 0;
+    if (levelInfo().level >= 10) {
+      const premium = Skins.list.filter((s) => s.premium).map((s) => s.id);
+      const fresh = premium.filter((id) => !(trialLeft(id) > 0));
+      const pool = fresh.length ? fresh : premium;
+      skin = pool[Math.floor(Math.random() * pool.length)];
+      p.trials[skin] = Date.now() + TRIAL_MS;
+    } else {
+      noTrialBonus = 150;
+    }
+    const xp = 300 + 50 * Math.min(p.streak, 10) + noTrialBonus;
     addXp(xp);
     persist();
-    return { streak: p.streak, xp, skin, badge };
+    return { streak: p.streak, xp, skin, badge, noTrialBonus };
   }
 
   // ---------- Skin trials ----------

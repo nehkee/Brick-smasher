@@ -246,6 +246,7 @@
       showToast({ text: 'MISSION COMPLETE', sub: `${r.text.toUpperCase()} · +${r.xp} XP`, t: 3.5, color: '#3dff8a' });
     } else if (r.kind === 'levelup') {
       showToast({ text: `LEVEL UP! LV ${r.level}`, sub: r.title, t: 3.5, color: '#ffe066' });
+      checkPlayerUnlocks();
     }
     Sound.reward();
     Haptics.reward();
@@ -398,15 +399,17 @@
   function tryUnlock(id) {
     const skin = Skins.unlock(id);
     if (skin) {
-      S.toast = { text: `SKIN UNLOCKED: ${skin.name.toUpperCase()}`, sub: 'EQUIP IT FROM THE MENU', t: 3.5, color: skin.paddle };
+      showToast({ text: `SKIN UNLOCKED: ${skin.name.toUpperCase()}`, sub: 'EQUIP IT FROM SKINS', t: 3.5, color: skin.paddle });
       Sound.good();
     }
   }
-  function checkLevelUnlocks(levelNumber) {
-    if (levelNumber >= 5) tryUnlock('inferno');
-    if (levelNumber >= 11) tryUnlock('toxic');
-    if (levelNumber >= 20) tryUnlock('galaxy');
+  // Free skins unlock with player level (XP), never before level 10.
+  const SKIN_LEVELS = { inferno: 10, toxic: 15, frost: 20, galaxy: 30 };
+  function checkPlayerUnlocks() {
+    const lvl = Progress.levelInfo().level;
+    for (const [id, need] of Object.entries(SKIN_LEVELS)) if (lvl >= need) tryUnlock(id);
   }
+  function checkLevelUnlocks() {}
 
   function requireIdentity(fn) {
     if (Account.state.kind) { fn(); return; }
@@ -559,7 +562,6 @@
     flairBurst(cx, cy);
     Sound.brick(S.combo);
     Haptics.brick();
-    if (S.combo >= 15) tryUnlock('frost');
     if (S.combo % 10 === 0) {
       addFloater(W / 2, H * 0.45, `${S.combo} COMBO!`, '#ff3df2', 26);
       S.shake = Math.max(S.shake, 6);
@@ -762,7 +764,7 @@
       }
     }
 
-    if (S.score >= 50000) tryUnlock('gold');
+    if (S.score >= 50000 && Progress.levelInfo().level >= 10) tryUnlock('gold');
     const ch = Share.challenge;
     if (ch && !S.beatChallenge && S.diff === ch.diff && S.score > ch.score) {
       S.beatChallenge = true;
@@ -1488,6 +1490,10 @@
     if (r.badge) glowText(`NEW BADGE: ${r.badge}`, W / 2, 262, 14, '#ffe066', 10);
     text(`+${(r.xp || 0) + (S.xpResult ? S.xpResult.gained : 0)} XP`, W / 2, 296, 16, '#3dff8a', 'center', 700);
     const skin = r.skin && Skins.byId(r.skin);
+    if (r.noTrialBonus) {
+      text(`+${r.noTrialBonus} BONUS XP`, W / 2, 344, 14, '#ffe066', 'center', 700);
+      text('SKIN TRIALS UNLOCK AT PLAYER LEVEL 10', W / 2, 372, 11, 'rgba(230,230,255,0.7)', 'center', 600);
+    }
     if (skin) {
       rr(W / 2 - 170, 322, 340, 118, 12);
       ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
@@ -1693,6 +1699,7 @@
   requestAnimationFrame(frame);
 
   Account.init(); // returning players resume; new visitors get a guest name automatically
+  Account.onChange(() => setTimeout(checkPlayerUnlocks, 0)); // e.g. logging in at a high level
   Sound.music('menu'); // starts after the first tap (browsers need a gesture for audio)
 
   // Hook for automated testing.

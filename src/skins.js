@@ -5,11 +5,11 @@
 const Skins = (() => {
   const LIST = [
     { id: 'neon',    name: 'Neon',      paddle: '#29f0ff', ball: '#ffffff', trail: '#29f0ff', how: 'Starter skin' },
-    { id: 'inferno', name: 'Inferno',   paddle: '#ff6a1f', ball: '#ffd36b', trail: '#ff3d00', how: 'Reach level 5' },
-    { id: 'toxic',   name: 'Toxic',     paddle: '#7dff3d', ball: '#eaffd0', trail: '#3dff8a', how: 'Reach endless mode (level 11)' },
-    { id: 'frost',   name: 'Frost',     paddle: '#9fe8ff', ball: '#ffffff', trail: '#6fb8ff', how: 'Hit a 15-brick combo' },
-    { id: 'galaxy',  name: 'Galaxy',    paddle: '#9b5cff', ball: '#f0e0ff', trail: '#ff3df2', how: 'Reach level 20' },
-    { id: 'gold',    name: 'Gold Rush', paddle: '#ffd700', ball: '#fff6c0', trail: '#ffb319', how: 'Score 50,000 in one run' },
+    { id: 'inferno', name: 'Inferno',   paddle: '#ff6a1f', ball: '#ffd36b', trail: '#ff3d00', how: 'Reach player level 10' },
+    { id: 'toxic',   name: 'Toxic',     paddle: '#7dff3d', ball: '#eaffd0', trail: '#3dff8a', how: 'Reach player level 15' },
+    { id: 'frost',   name: 'Frost',     paddle: '#9fe8ff', ball: '#ffffff', trail: '#6fb8ff', how: 'Reach player level 20' },
+    { id: 'galaxy',  name: 'Galaxy',    paddle: '#9b5cff', ball: '#f0e0ff', trail: '#ff3df2', how: 'Reach player level 30' },
+    { id: 'gold',    name: 'Gold Rush', paddle: '#ffd700', ball: '#fff6c0', trail: '#ffb319', how: 'Score 50,000 in one run (player level 10+)' },
     { id: 'rainbow', name: 'Rainbow',   paddle: '#ff3df2', ball: '#ffffff', trail: '#29f0ff', premium: true, price: '$0.99',
       flair: 'rainbow', perk: 'Rainbow paddle, trail and brick bursts',
       swatch: 'linear-gradient(90deg,#ff3d3d,#ffb319,#ffe066,#3dff8a,#29f0ff,#9b5cff,#ff3df2)' },
@@ -151,10 +151,8 @@ const Skins = (() => {
       card.append(btn);
       grid.append(card);
     }
-    note.textContent = (Account.state.kind === 'account'
-      ? 'Your skins are saved to your account.'
-      : 'Guest skins last 12 hours. Create an account to keep them forever.') +
-      ' Premium skins are looks only, never an advantage. Complete the daily challenge to try one free for 24 hours.';
+    // Only guests need a note: their skins disappear with the guest name.
+    note.textContent = Account.state.kind === 'account' ? '' : 'Sign up to keep your skins.';
   }
 
   panel.querySelector('.lb-close').addEventListener('click', () => { panel.hidden = true; });

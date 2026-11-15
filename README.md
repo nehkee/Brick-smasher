@@ -47,13 +47,13 @@ Guests send a random guest id so two guests with the same name stay separate. Ea
 
 ## Skins
 
-Six free skins are unlocked by playing (level 5, endless mode, 15-combo, level 20, 50,000 points). Three premium skins are shown with prices but can't be bought yet.
+Free skins unlock with player level, never before level 10: Inferno (10), Toxic (15), Frost (20), Galaxy (30), and Gold Rush for scoring 50,000 in one run at level 10+. Three premium skins are shown with prices but can't be bought yet.
 
 ## Progress, missions and the daily challenge
 
 - **XP and player levels** (no cap) with titles from Rookie to Brick God. XP comes from every run (score and levels reached), missions and the daily challenge.
 - **Missions**: three at a time, randomly generated from templates (bricks in a run, combos, laser kills, explosives, perfect clears, Berserk time, mystery capsules…). Completing one awards XP and rolls a new one, so they never run out.
-- **Daily challenge**: one generated level per UTC day, the same for everyone, with a daily twist (Speed Demon, Power Surge, Tiny Paddle, Mystery Box, Chain Reaction). 3 attempts per day; clearing it extends your streak, gives XP and a **24-hour free trial of a premium skin**. Streak badges at 3, 7, 14, 30, 50 and 100 days.
+- **Daily challenge**: one generated level per UTC day, the same for everyone, with a daily twist (Speed Demon, Power Surge, Tiny Paddle, Mystery Box, Chain Reaction). 3 attempts per day; clearing it extends your streak, gives XP and, from player level 10, a **24-hour free trial of a premium skin** (bonus XP before that). Streak badges at 3, 7, 14, 30, 50 and 100 days.
 - Guests keep progress for their 12 hours; accounts save it to `profiles.progress` via `save_progress()`.
 
 ## Feel, sound and settings
