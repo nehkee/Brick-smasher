@@ -239,3 +239,43 @@ html, body {
   .sname { font-size: 14px; }
   .skin button { font-size: 11px; padding: 8px 4px; }
 }
+
+/* ---------- Share ---------- */
+#share-panel .lb-card { overflow-y: auto; }
+#share-preview {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 1;
+  margin: 0 auto 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(230, 230, 255, 0.2);
+  background: #0b0d20;
+}
+#share-native { width: 100%; margin-bottom: 10px; }
+#share-native[hidden] { display: none; }
+.share-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.share-grid button {
+  padding: 11px 4px;
+  font: inherit;
+  font-size: 11px;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.share-grid .sx { background: #000; border: 1px solid #444; }
+.share-grid .sfb { background: #1877f2; }
+.share-grid .swa { background: #1fa855; }
+.share-grid .stg { background: #229ed9; }
+.share-grid .srd { background: #ff4500; }
+.share-grid .scp { background: #2a2c48; }
+.lb button.ghost.save { width: 100%; margin-top: 10px; font-size: 11px; color: #ffe066; border-color: #ffe066; }
+#share-status { margin-top: 8px; min-height: 1.2em; }
+@media (max-width: 380px) { .share-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 700px) and (min-height: 600px) {
+  #share-preview { max-width: 340px; }
+  .share-grid button { font-size: 13px; padding: 13px 4px; }
+  .lb button.ghost.save { font-size: 13px; }
+}
+@media (max-width: 400px) { .lb h2 { font-size: 18px; padding: 0 34px; } }

@@ -86,6 +86,26 @@
     </div>
   </div>
 
+  <!-- Share your score -->
+  <div id="share-panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="share-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="share-title">SHARE YOUR SCORE</h2>
+      <img id="share-preview" alt="Your Brick Smasher score card">
+      <button id="share-native" class="go" data-share="native" type="button">SHARE…</button>
+      <div class="share-grid">
+        <button data-share="x" type="button" class="sx">X / TWITTER</button>
+        <button data-share="facebook" type="button" class="sfb">FACEBOOK</button>
+        <button data-share="whatsapp" type="button" class="swa">WHATSAPP</button>
+        <button data-share="telegram" type="button" class="stg">TELEGRAM</button>
+        <button data-share="reddit" type="button" class="srd">REDDIT</button>
+        <button data-share="copy" type="button" class="scp">COPY LINK</button>
+      </div>
+      <button data-share="save" type="button" class="ghost save">SAVE IMAGE (INSTAGRAM, TIKTOK, STORIES)</button>
+      <p id="share-status" class="hint"></p>
+    </div>
+  </div>
+
   <!-- Skins -->
   <div id="skins-panel" class="lb" hidden>
     <div class="lb-card" role="dialog" aria-labelledby="skins-title">
@@ -102,6 +122,7 @@
   <script src="src/account.js"></script>
   <script src="src/skins.js"></script>
   <script src="src/leaderboard.js"></script>
+  <script src="src/share.js"></script>
   <script src="src/main.js"></script>
 </body>
 </html>

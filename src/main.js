@@ -86,7 +86,8 @@
   // ---------- State ----------
   const S = {
     mode: 'menu',          // menu | play | paused | clear | over | win
-    menuSel: 1,
+    menuSel: Share.challenge ? ['easy', 'normal', 'hard'].indexOf(Share.challenge.diff) : 1,
+    beatChallenge: false,
     diff: 'normal',
     level: 0,
     score: 0,
@@ -210,6 +211,7 @@
     S.passedBest = false;
     S.prevBest = highScores[diff];
     S.runId++;
+    S.beatChallenge = false;
     if (Account.expiringSoon() && !S.warnedExpiry) {
       S.warnedExpiry = true;
       S.toast = { text: `GUEST EXPIRES IN ${guestTimeLeft(Account.state.expires)}`, sub: `SIGN UP FROM THE MENU TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'}`, t: 4, color: '#ffb319' };
@@ -576,6 +578,12 @@
     }
 
     if (S.score >= 50000) tryUnlock('gold');
+    const ch = Share.challenge;
+    if (ch && !S.beatChallenge && S.diff === ch.diff && S.score > ch.score) {
+      S.beatChallenge = true;
+      S.toast = { text: `YOU BEAT ${ch.name.toUpperCase()}!`, sub: 'SHARE IT WHEN THE RUN ENDS', t: 4, color: '#3dff8a' };
+      Sound.good();
+    }
     if (!S.passedBest && S.prevBest > 0 && S.score > S.prevBest) {
       S.passedBest = true;
       S.banner = { text: 'NEW BEST!', sub: 'KEEP GOING', t: 1.4, max: 1.4 };
@@ -949,6 +957,11 @@
       const beat = S.score > S.prevBest;
       text(beat ? 'NEW BEST!' : `BEST ${S.prevBest}`, 20, HUD_H + 16, 10, beat ? '#ffe066' : 'rgba(230,230,255,0.45)', 'left', 600);
     }
+    const ch = Share.challenge;
+    if (ch && S.diff === ch.diff) {
+      text(S.beatChallenge ? `BEAT ${ch.name.toUpperCase()} ✓` : `BEAT ${ch.name.toUpperCase()}: ${ch.score}`,
+        W - 20, HUD_H + 16, 10, S.beatChallenge ? '#3dff8a' : '#ff3df2', 'right', 600);
+    }
     if (S.combo >= 4) glowText(`COMBO ${S.combo}`, W / 2, HUD_H + 18, 13, '#ffe066', 10);
 
     let x = 14;
@@ -1061,7 +1074,13 @@
     text(who, W / 2, 253, 10.5, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
     S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 34, action: 'account' });
 
-    text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 296, 12, 'rgba(230,230,255,0.7)', 'center', 500);
+    const ch = Share.challenge;
+    if (ch) {
+      glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 296, 12,
+        DIFFS[ch.diff].color, 8 + 6 * Math.sin(S.time * 4));
+    } else {
+      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 296, 12, 'rgba(230,230,255,0.7)', 'center', 500);
+    }
 
     DIFF_KEYS.forEach((k, i) => {
       const d = DIFFS[k];
@@ -1102,6 +1121,11 @@
     glowText('GAME OVER', W / 2, 190, 52, '#ff3d6e', 26);
     text(`REACHED LEVEL ${S.level + 1}${isEndless(S.level) ? ' (ENDLESS)' : ''} ON ${DIFFS[S.diff].label}`, W / 2, 242, 13, 'rgba(230,230,255,0.75)', 'center', 500);
     glowText(String(S.score), W / 2, 305, 52, '#29f0ff', 18);
+    if (Share.challenge && S.diff === Share.challenge.diff) {
+      const ch = Share.challenge;
+      text(S.beatChallenge ? `YOU BEAT ${ch.name.toUpperCase()}'S ${ch.score}!` : `${ch.score - S.score} SHORT OF ${ch.name.toUpperCase()}`,
+        W / 2, 268, 11, S.beatChallenge ? '#3dff8a' : '#ff3df2', 'center', 600);
+    }
     if (S.newHigh) {
       glowText('NEW PERSONAL BEST!', W / 2, 355, 18, '#ffe066', 14 + 6 * Math.sin(S.time * 6));
     } else if (S.prevBest > 0 && S.prevBest - S.score <= S.prevBest * 0.2) {
@@ -1129,11 +1153,13 @@
 
     if (S.modeTime > 0.5) {
       button('PLAY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', `start:${S.diff}`, null, true);
+      if (S.score > 0) button(S.beatChallenge ? 'SHARE: I WON!' : 'SHARE MY SCORE', W / 2 - 130, 501, 260, 52, '#29f0ff', 'share');
       const guest = Account.state.kind !== 'account';
-      button('LEADERBOARD', W / 2 - 130, 505, guest ? 126 : 260, 52, '#ffe066', 'board');
-      if (guest) button('SIGN UP', W / 2 + 4, 505, 126, 52, '#3dff8a', 'signup');
-      button('MAIN MENU', W / 2 - 130, 573, 260, 52, '#ff3df2', 'menu');
-      text('SPACE / ENTER TO PLAY AGAIN', W / 2, 650, 10, 'rgba(230,230,255,0.4)', 'center', 500);
+      const y2 = S.score > 0 ? 565 : 505;
+      button('LEADERBOARD', W / 2 - 130, y2, guest ? 126 : 260, 48, '#ffe066', 'board');
+      if (guest) button('SIGN UP', W / 2 + 4, y2, 126, 48, '#3dff8a', 'signup');
+      button('MAIN MENU', W / 2 - 130, y2 + 60, 260, 48, '#ff3df2', 'menu');
+      text('SPACE / ENTER TO PLAY AGAIN', W / 2, y2 + 128, 10, 'rgba(230,230,255,0.4)', 'center', 500);
     }
   }
 
@@ -1188,6 +1214,14 @@
       case 'skins': Skins.open(); return true;
       case 'account': Account.open({ required: !Account.state.kind }); return true;
       case 'signup': Account.open({ tab: 'signup' }); return true;
+      case 'share':
+        Share.open({
+          score: S.score, level: S.level + 1, diff: S.diff,
+          name: S.postedName || Account.state.name || 'A player',
+          newBest: S.newHigh,
+          beat: S.beatChallenge ? Share.challenge.name : null,
+        });
+        return true;
     }
     return false;
   }
