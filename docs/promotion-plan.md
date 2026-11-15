@@ -59,7 +59,7 @@ Reddit dislikes ads but welcomes real developers asking for feedback.
 
 ## Measuring what works
 
-Add simple visitor stats before promoting, so you can see which channel brings players. Option: **Vercel Web Analytics** (free tier, privacy-friendly, no cookies). Not switched on yet.
+Add simple visitor stats before promoting, so you can see which channel brings players. **Vercel Web Analytics** (free tier, privacy-friendly, no cookies): the snippet is in the game; view stats in the Vercel dashboard under the project's **Analytics** tab.
 
 ---
 
