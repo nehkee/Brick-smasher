@@ -121,6 +121,7 @@ const Skins = (() => {
 
   return {
     list: LIST,
+    unlockedCount: () => unlocked.size,
     current: () => LIST.find((s) => s.id === equipped) || LIST[0],
     unlock,
     open: () => { render(); panel.hidden = false; },

@@ -53,9 +53,20 @@ const Account = (() => {
       if (data.session) { await loadProfile(data.session.user); emit(); return; }
     } catch (e) { /* offline or expired session: fall back to guest */ }
     const g = savedGuest();
-    if (g) { state.kind = 'guest'; state.name = g.name; state.expires = g.expires; }
-    emit();
+    if (g) { state.kind = 'guest'; state.name = g.name; state.expires = g.expires; emit(); return; }
+    await startAutoGuest(); // new visitors play instantly under a generated name
   }
+
+  // Give the player a fun guest name without asking (they can change it later).
+  async function startAutoGuest() {
+    for (let i = 0; i < 3; i++) {
+      try { await playAsGuest(suggestName()); return; } catch (e) { /* name clash: try another */ }
+    }
+    await playAsGuest(suggestName() + Math.floor(Math.random() * 10)).catch(() => emit());
+  }
+
+  const WARN_MS = 60 * 60 * 1000; // warn guests during their last hour
+  const guestMsLeft = () => (state.kind === 'guest' ? Math.max(0, state.expires - Date.now()) : Infinity);
 
   async function playAsGuest(raw) {
     const name = cleanGuest(raw);
@@ -191,6 +202,8 @@ const Account = (() => {
     client,
     state,
     checkGuestExpiry,
+    startAutoGuest,
+    expiringSoon: () => guestMsLeft() < WARN_MS,
     init,
     open,
     close,

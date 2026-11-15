@@ -164,6 +164,10 @@
     S.passedBest = false;
     S.prevBest = highScores[diff];
     S.runId++;
+    if (Account.expiringSoon() && !S.warnedExpiry) {
+      S.warnedExpiry = true;
+      S.toast = { text: `GUEST EXPIRES IN ${guestTimeLeft(Account.state.expires)}`, sub: `SIGN UP FROM THE MENU TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'}`, t: 4, color: '#ffb319' };
+    }
     S.rank = null;
     S.rankState = 'none';
     S.particles = [];
@@ -488,7 +492,11 @@
 
     if (S.mode !== 'play') {
       // A guest's 12 hours can run out while the game is open; ask for a new name.
-      if (Account.checkGuestExpiry() && !Account.isOpen()) Account.open({ required: true });
+      if (Account.checkGuestExpiry()) {
+        Account.startAutoGuest().then(() => {
+          S.toast = { text: 'GUEST TIME IS UP', sub: `YOU'RE NOW ${String(Account.state.name).toUpperCase()} · SIGN UP NEXT TIME TO KEEP YOUR SKINS`, t: 6, color: '#ffb319' };
+        });
+      }
       return;
     }
 
@@ -869,7 +877,7 @@
     const t = S.toast;
     ctx.globalAlpha = Math.min(1, t.t * 2);
     const y = HUD_H + 44;
-    rr(W / 2 - 170, y - 22, 340, 48, 10);
+    rr(W / 2 - 250, y - 22, 500, 48, 10);
     ctx.fillStyle = 'rgba(8,8,24,0.92)';
     ctx.fill();
     ctx.strokeStyle = t.color;
@@ -938,16 +946,21 @@
 
     // Who's playing
     const st = Account.state;
+    const warn = Account.expiringSoon();
+    const keep = Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME';
     const who = st.kind === 'account' ? `PLAYING AS ${st.name.toUpperCase()}`
-      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST · ${guestTimeLeft(st.expires)} LEFT` : 'TAP TO CHOOSE A NAME';
-    const whoW = 420;
+      : warn ? `GUEST EXPIRES IN ${guestTimeLeft(st.expires)} · TAP TO SIGN UP & KEEP YOUR ${keep}`
+      : st.kind === 'guest' ? `PLAYING AS ${st.name.toUpperCase()} · GUEST · TAP TO SIGN UP` : 'GETTING YOUR NAME READY…';
+    const pillColor = st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.35)';
+    const whoW = 440;
     rr(W / 2 - whoW / 2, 236, whoW, 34, 17);
-    ctx.fillStyle = S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
+    ctx.fillStyle = warn ? `rgba(255,179,25,${0.12 + 0.08 * Math.sin(S.time * 4)})`
+      : S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
     ctx.fill();
-    ctx.strokeStyle = st.kind === 'account' ? '#3dff8a' : 'rgba(230,230,255,0.35)';
+    ctx.strokeStyle = pillColor;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    text(who, W / 2, 253, 11, st.kind === 'account' ? '#3dff8a' : 'rgba(230,230,255,0.85)', 'center', 600);
+    text(who, W / 2, 253, 10.5, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
     S.buttons.push({ x: W / 2 - whoW / 2, y: 236 + S.btnOffset, w: whoW, h: 34, action: 'account' });
 
     text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 296, 12, 'rgba(230,230,255,0.7)', 'center', 500);
@@ -1005,7 +1018,11 @@
     if (S.rankState === 'done' && S.rank) {
       if (S.rank.guest) {
         glowText(`#${S.rank.today_rank} TODAY ON ${dl}`, W / 2, y - 6, 15, DIFFS[S.diff].color, 10);
-        text('CREATE AN ACCOUNT TO RANK ALL-TIME', W / 2, y + 16, 10, '#ff3df2', 'center', 600);
+        if (Account.expiringSoon()) {
+          text(`SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'} · GUEST EXPIRES IN ${guestTimeLeft(Account.state.expires)}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
+        } else {
+          text(`POSTED AS ${String(Account.state.name).toUpperCase()} · SIGN UP TO RANK ALL-TIME`, W / 2, y + 16, 10, '#ff3df2', 'center', 600);
+        }
       } else {
         glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y, 15, DIFFS[S.diff].color, 10);
       }
@@ -1040,6 +1057,7 @@
     if (S.mode === 'menu') {
       centred(drawMenu);
       drawParticles();
+      drawToast();
       return;
     }
     drawBricks();
@@ -1164,9 +1182,7 @@
   }
   requestAnimationFrame(frame);
 
-  Account.init().then(() => {
-    if (!Account.state.kind) Account.open({ required: true });
-  });
+  Account.init(); // returning players resume; new visitors get a guest name automatically
 
   // Hook for automated testing.
   window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel };
