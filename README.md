@@ -98,6 +98,10 @@ Built for current Chrome, Safari (iOS 14.5+), Samsung Internet, Firefox and Edge
 
 Open `https://brick-smasher-liart.vercel.app/?fresh=1` to clear this device's guest name, skins, best scores and login and start as a brand-new player.
 
+## Security
+
+Only the publishable Supabase key is in the client. Tables are locked; all writes go through validated database functions (`submit_score`, `save_progress`, `save_skins`). Sign-ups are rate-limited per network address (hashed). Security headers are set in `vercel.json`, and `.vercelignore` keeps `docs/` and `supabase/` off the website. Remaining items are listed in `docs/possible-future-improvements.md`.
+
 ## Project layout
 
 ```

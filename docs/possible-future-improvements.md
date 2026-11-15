@@ -129,6 +129,28 @@ On-screen words that celebrate great play, like a puzzle game's "praise" pop-ups
 2. **Once players return daily:** turn on premium skins + one $0.99 continue per run (offered near a high score) + Supporter Pass.
 3. **If it takes off:** publish free on Apple and Google with in-app purchases; add Pro and level packs.
 
+## 4. Security: what's done and what's left
+
+**Already in place (checked 15 Nov 2026)**
+- Only the public "publishable" key is in the game; the admin key lives only in the signup function's server settings.
+- The public key can't read or write tables directly: scores, profiles and sign-up records are all locked; every write goes through validated database functions.
+- Names are filtered on the server and always shown as plain text (no code injection).
+- Impossible scores rejected; at most 6 scores per player per minute.
+- Sign-ups limited to **5 per network address per hour** (300/hour overall), storing only a one-way hash of the address.
+- Website security headers: content security policy, no embedding by other sites, nosniff, referrer and permissions policies; HTTPS enforced.
+- `docs/`, `supabase/` and README are not published on the website (they stay on GitHub).
+
+**Owner action (1 minute):** in Supabase → Authentication → Sign In / Providers, switch off **"Allow new users to sign up"**. Brick Smasher's own sign-up keeps working (it creates accounts through the admin API), but it stops anyone abusing Supabase's built-in sign-up to send confirmation emails to strangers.
+
+**Still to do (not built yet)**
+1. **Account deletion inside the game.** Required by Apple for any app with sign-up, and by privacy laws in many places. **Must be done before an app-store launch.** A "Delete account" button in the account panel that removes the profile, scores and login.
+2. **Real anti-cheat for scores.** A technical person can still send a believable fake score. Full fix: record each run's inputs and re-check the run on the server (or verify with cryptographic proofs, possible with Starknet). Worth it if the leaderboard gets competitive or anything of value is at stake.
+3. **Name moderation.** Block offensive usernames and guest names (word list), plus a simple admin way to remove a name or score.
+4. **Stronger passwords and recovery.** Minimum 8 characters, warn on very common passwords; optional email for password reset (needs an email service such as Resend).
+5. **Login attempt limits.** Supabase limits auth requests, but a stricter per-username limit on wrong passwords would slow down guessing.
+6. **Privacy policy and terms.** Needed for app stores and good practice now: what's stored (username, scores, progress, hashed network address for sign-up limits), how to delete it, and (if added later) the Starknet integration.
+7. **Monitoring.** Periodically review Supabase's security advisor and logs for unusual traffic (bursts of sign-ups or scores).
+
 ---
 
 See also: `docs/monetization-plan.md` (parked money plan).
