@@ -1453,53 +1453,108 @@
   }
 
   function drawEnd() {
-    dim(0.8);
-    if (S.daily) { drawDailyFail(); return; }
-    glowText('GAME OVER', W / 2, 190, 52, '#ff3d6e', 26);
-    text(`LEVEL ${S.level + 1}${isEndless(S.level) ? ' · ENDLESS' : ''} · ${DIFFS[S.diff].label}`, W / 2, 240, 13, 'rgba(230,230,255,0.75)', 'center', 500);
-    glowText(String(S.score), W / 2, 305, 52, '#29f0ff', 18);
-    if (Share.challenge && S.diff === Share.challenge.diff) {
-      const ch = Share.challenge;
-      text(S.beatChallenge ? `YOU BEAT ${ch.name.toUpperCase()}'S ${ch.score}!` : `${ch.score - S.score} SHORT OF ${ch.name.toUpperCase()}`,
-        W / 2, 268, 11, S.beatChallenge ? '#3dff8a' : '#ff3df2', 'center', 600);
-    }
+    if (S.daily) { dim(0.8); drawDailyFail(); return; }
+    const acc = DIFFS[S.diff].color;
+    const t = S.modeTime;
+
+    // Backdrop: deep dim with a soft glow in the mode's colour behind the score.
+    dim(0.86);
+    const glow = ctx.createRadialGradient(W / 2, 300, 10, W / 2, 300, 330);
+    glow.addColorStop(0, acc + '38');
+    glow.addColorStop(1, acc + '00');
+    ctx.fillStyle = glow;
+    ctx.fillRect(-OX, 0, VW, LAYOUT_H);
+
+    // Title (small, spaced) and the mode
+    ctx.globalAlpha = Math.min(1, t * 3);
+    glowText('G A M E   O V E R', W / 2, 170, 20, '#ff3d6e', 14);
+    text(`LEVEL ${S.level + 1}${isEndless(S.level) ? ' · ENDLESS' : ''} · ${DIFFS[S.diff].label}`, W / 2, 202, 11, 'rgba(230,230,255,0.45)', 'center', 600);
+    ctx.globalAlpha = 1;
+
+    // The score: big, counting up
+    const k = Math.min(1, t / 0.9);
+    const shown = Math.round(S.score * (1 - Math.pow(1 - k, 3)));
+    const pop = k < 1 ? 1 : 1 + 0.04 * Math.max(0, 1 - (t - 0.9) * 4);
+    ctx.save();
+    ctx.translate(W / 2, 285);
+    ctx.scale(pop, pop);
+    glowText(String(shown), 0, 0, shown >= 100000 ? 70 : 88, '#ffffff', 34);
+    ctx.restore();
+
+    // One line under the score
     if (S.newHigh) {
-      glowText('NEW PERSONAL BEST!', W / 2, 355, 18, '#ffe066', 14 + 6 * Math.sin(S.time * 6));
-    } else if (S.prevBest > 0 && S.prevBest - S.score <= S.prevBest * 0.2) {
-      glowText(`SO CLOSE! ${S.prevBest - S.score} FROM YOUR BEST`, W / 2, 355, 15, '#ffe066', 10);
-    } else {
-      text(`BEST ${highScores[S.diff]}`, W / 2, 355, 14, 'rgba(230,230,255,0.6)', 'center', 500);
-    }
-
-    // Leaderboard status
-    const y = 392;
-    const dl = DIFFS[S.diff].label;
-    if (S.rankState === 'done' && S.rank) {
-      if (S.rank.guest) {
-        const warnNow = Account.expiringSoon();
-        glowText(`#${S.rank.today_rank} TODAY`, W / 2, warnNow ? y - 6 : y, 15, DIFFS[S.diff].color, 10);
-        if (warnNow) {
-          text(`GUEST ENDS IN ${guestTimeLeft(Account.state.expires)} · SIGN UP TO KEEP YOUR ${Skins.unlockedCount() > 1 ? 'SKINS' : 'NAME'}`, W / 2, y + 16, 10, '#ffb319', 'center', 600);
-        }
-      } else {
-        glowText(`#${S.rank.alltime_rank} ALL-TIME  ·  #${S.rank.today_rank} TODAY`, W / 2, y - 6, 15, DIFFS[S.diff].color, 10);
+      glowText('NEW BEST', W / 2, 352, 16, '#ffe066', 12 + 8 * Math.sin(S.time * 6));
+      if (t < 1.2 && Math.random() < 0.5) {
+        S.particles.push({ x: W / 2 + rand(-140, 140), y: 352, vx: rand(-40, 40), vy: rand(-160, -60), life: 0.9, max: 0.9,
+          color: pick(['#ffe066', '#29f0ff', '#ff3df2', '#3dff8a']), size: rand(2, 4) });
       }
-    } else if (S.rankState === 'sending') text('SUBMITTING SCORE…', W / 2, y, 12, 'rgba(230,230,255,0.6)', 'center', 500);
-    else if (S.rankState === 'error') text(`SCORE NOT SAVED: ${S.rankError}`.toUpperCase().slice(0, 60), W / 2, y, 10, '#ff3d6e', 'center', 500);
-    if (S.xpResult && !(S.rank && S.rank.guest && Account.expiringSoon())) {
-      text(`+${S.xpResult.gained} XP · LV ${S.xpResult.after.level}`, W / 2, y + 16, 11, '#3dff8a', 'center', 600);
+    } else if (Share.challenge && S.diff === Share.challenge.diff) {
+      const ch = Share.challenge;
+      text(S.beatChallenge ? `YOU BEAT ${ch.name.toUpperCase()}` : `${ch.score - S.score} SHORT OF ${ch.name.toUpperCase()}`,
+        W / 2, 352, 13, S.beatChallenge ? '#3dff8a' : '#ff3df2', 'center', 700);
+    } else if (S.prevBest > 0 && S.prevBest - S.score <= S.prevBest * 0.2) {
+      text(`SO CLOSE · ${S.prevBest - S.score} FROM YOUR BEST`, W / 2, 352, 12, '#ffe066', 'center', 700);
+    } else {
+      text(`BEST ${highScores[S.diff]}`, W / 2, 352, 12, 'rgba(230,230,255,0.45)', 'center', 600);
     }
 
-    if (S.modeTime > 0.5) {
-      button('PLAY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', `start:${S.diff}`, null, true);
-      if (S.score > 0) button(S.beatChallenge ? 'SHARE: I WON!' : 'SHARE MY SCORE', W / 2 - 130, 501, 260, 52, '#29f0ff', 'share');
-      const guest = Account.state.kind !== 'account';
-      const y2 = S.score > 0 ? 565 : 505;
-      button('LEADERBOARD', W / 2 - 130, y2, guest ? 126 : 260, 48, '#ffe066', 'board');
-      if (guest) button('SIGN UP', W / 2 + 4, y2, 126, 48, '#3dff8a', 'signup');
-      button('MAIN MENU', W / 2 - 130, y2 + 60, 260, 48, '#ff3df2', 'menu');
-      if (HAS_KEYBOARD) text('SPACE TO PLAY AGAIN', W / 2, y2 + 128, 10, 'rgba(230,230,255,0.4)', 'center', 500);
+    // XP earned: a thin bar that fills (only when there's something to show)
+    const xp = S.xpResult;
+    if (xp && xp.gained > 0) {
+      const bw = 200, bx = W / 2 - bw / 2, by = 382;
+      const after = xp.after;
+      const fill = Math.min(1, (after.into / after.need) * Math.min(1, Math.max(0, (t - 0.4) / 0.8)));
+      rr(bx, by, bw, 5, 2.5); ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fill();
+      if (fill > 0) {
+        rr(bx, by, Math.max(5, bw * fill), 5, 2.5);
+        const xg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+        xg.addColorStop(0, '#29f0ff'); xg.addColorStop(1, '#3dff8a');
+        ctx.fillStyle = xg; ctx.fill();
+      }
+      text(`+${xp.gained} XP`, W / 2, by + 20, 10, '#3dff8a', 'center', 700);
     }
+
+    if (t > 0.5) {
+      const a = Math.min(1, (t - 0.5) * 4);
+      ctx.globalAlpha = a;
+      fillButton('PLAY AGAIN', W / 2 - 140, 432, 280, 64, '#3dff8a', `start:${S.diff}`);
+      if (S.score > 0) button(S.beatChallenge ? 'SHARE: I WON!' : 'SHARE', W / 2 - 140, 510, 280, 52, '#29f0ff', 'share');
+      // Small links
+      const links = [['LEADERBOARD', 'board'], ['MENU', 'menu']];
+      if (Account.state.kind !== 'account') links.push(['SIGN UP', 'signup']);
+      const ly = S.score > 0 ? 598 : 540;
+      ctx.font = font(12, 700);
+      const gap = 30;
+      const widths = links.map(([l]) => ctx.measureText(l).width);
+      let lx = W / 2 - (widths.reduce((x, y) => x + y, 0) + gap * (links.length - 1)) / 2;
+      links.forEach(([label, action], n) => {
+        const hover = S.hoverAction === action;
+        text(label, lx, ly, 12, hover ? '#ffffff' : 'rgba(230,230,255,0.6)', 'left', 700);
+        S.buttons.push({ x: lx - 10, y: ly - 18 + S.btnOffset, w: widths[n] + 20, h: 36, action });
+        if (n < links.length - 1) text('·', lx + widths[n] + gap / 2, ly, 12, 'rgba(230,230,255,0.25)', 'center', 700);
+        lx += widths[n] + gap;
+      });
+      if (HAS_KEYBOARD) text('SPACE TO PLAY AGAIN', W / 2, ly + 40, 9, 'rgba(230,230,255,0.3)', 'center', 500);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Solid, glowing primary button.
+  function fillButton(label, x, y, w, h, color, action) {
+    const hover = S.hoverAction === action;
+    const pulse = 0.5 + 0.5 * Math.sin(S.time * 3);
+    rr(x, y, w, h, 14);
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.12, color);
+    g.addColorStop(1, color + 'aa');
+    ctx.fillStyle = g;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = hover ? 34 : 18 + 10 * pulse;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    text(label, x + w / 2, y + h / 2, 24, '#050614', 'center', 700);
+    S.buttons.push({ x, y: y + S.btnOffset, w, h, action });
   }
 
   function drawDailyFail() {
