@@ -33,6 +33,49 @@ On-screen words that celebrate great play, like a puzzle game's "praise" pop-ups
 
 **Effort:** about half a day. Builds on the existing "10 COMBO!", "PERFECT!" and "NEW BEST!" pop-ups.
 
+## 2. Starknet layer (for the Wolfpack League program)
+
+**Why:** the owner is in the Wolfpack League (WPL) program on Starknet, which may pay builders whose projects show real traction (possibly around $3,000–4,000, or points toward it). The blockchain is for the owner's benefit; players shouldn't notice any difference.
+
+**Order:** launch as is and get real players first, then add Starknet.
+
+**Hard constraint: the owner can't pay fees.** Every option below must cost nothing, or have fees paid by a sponsor confirmed in writing before going live.
+
+**What changes for players: nothing.**
+- Gameplay stays in the browser. Blockchains are far too slow for 60-frames-a-second physics.
+- Login, guest mode, skins and menus stay the same.
+- Blockchain writes happen in the background after a run, never during play.
+- Guests stay off-chain (their names expire after 12 hours).
+- Mention Starknet plainly in the terms and privacy policy, even if not in the game screens.
+
+**What could be recorded on Starknet (registered players only)**
+- Completed daily challenges and streak badges
+- Personal best scores
+- Skin ownership (later makes paid skins truly owned and possibly tradeable)
+
+**Player accounts with no wallet or seed phrase**
+- Option A: **Cartridge Controller**, made for Starknet games: passkey accounts, background signing, sponsored fees.
+- Option B: game-managed accounts with fees paid through the **AVNU** paymaster (avnu.fi) in sponsored mode.
+
+**Zero-cost path**
+1. **Build and demo on Starknet Sepolia (test network).** Fees are paid with free faucet tokens: $0.
+2. **Ask WPL for fee sponsorship** before mainnet: "Can the program or a partner sponsor transaction fees for my game?" Also check Starknet Foundation grants, and whether AVNU or Cartridge give free credits to new projects. (Not confirmed; these offers change.)
+3. **Fallback if nobody sponsors: a daily summary.** One on-chain record per day bundling that day's results costs a few cents a day. Cheapest by far, but shows few unique wallets.
+4. Go to mainnet only once a sponsor has confirmed in writing that they'll cover fees.
+
+**Questions for WPL before building**
+1. What counts as traction: unique wallets, transactions, contract interactions, daily active users?
+2. Must users knowingly connect a Starknet wallet, or is an invisible integration acceptable?
+3. Is testnet activity accepted at any stage?
+4. Can the program or a partner sponsor gas fees?
+5. What's the timeline, and is the payout tied to specific milestones?
+
+**Don't inflate numbers.** No wallets for throwaway guests and no transaction per brick. Programs check for this, and it can cost their trust and the payout.
+
+**Rough costs (verify current prices):** Starknet fees are typically a fraction of a cent per transaction. About 1,000 players with a few on-chain moments a day would be roughly a few dollars a day on mainnet: small, but not zero, hence the need for a sponsor.
+
+**Effort:** a few days. Needs a Starknet wallet to deploy the contract (free on testnet), the Cartridge vs AVNU decision, and a sponsor arrangement for mainnet.
+
 ---
 
 See also: `docs/monetization-plan.md` (parked money plan).
