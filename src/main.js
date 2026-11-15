@@ -922,7 +922,10 @@
     ctx.shadowBlur = hover ? 22 : 10;
     ctx.stroke();
     ctx.shadowBlur = 0;
-    text(label, x + w / 2, y + h / 2 - (sub ? 8 : 0), w < 140 ? 12 : w < 200 ? 15 : 22, color);
+    let size = w < 140 ? 12 : w < 200 ? 15 : 22;
+    ctx.font = font(size);
+    while (size > 8 && ctx.measureText(label).width > w - 14) { size -= 0.5; ctx.font = font(size); }
+    text(label, x + w / 2, y + h / 2 - (sub ? 8 : 0), size, color);
     if (sub) text(sub, x + w / 2, y + h / 2 + 16, 11, 'rgba(230,230,255,0.6)', 'center', 500);
     S.buttons.push({ x, y: y + S.btnOffset, w, h, action });
   }
@@ -1314,11 +1317,29 @@
     const st = Account.state;
     const warn = Account.expiringSoon();
     const who = st.kind === 'account' ? st.name.toUpperCase()
-      : warn ? `GUEST ENDS IN ${guestTimeLeft(st.expires)} · SIGN UP TO KEEP IT`
+      : warn ? `GUEST ENDS IN ${guestTimeLeft(st.expires)}`
       : st.kind === 'guest' ? `${st.name.toUpperCase()} · GUEST` : '…';
     const pillColor = st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.35)';
     ctx.font = font(11, 600);
-    const whoW = Math.min(440, ctx.measureText(who).width + 48);
+    const whoW = Math.min(300, ctx.measureText(who).width + 40);
+    // Guests get a clear button to create an account or log in.
+    const ctaLabel = 'LOG IN / SIGN UP';
+    const ctaW = st.kind === 'guest' ? ctx.measureText(ctaLabel).width + 30 : 0;
+    const rowW = whoW + (ctaW ? ctaW + 8 : 0);
+    const pillX = W / 2 - rowW / 2;
+    if (ctaW) {
+      const cx = pillX + whoW + 8;
+      rr(cx, 204, ctaW, 32, 16);
+      ctx.fillStyle = S.hoverAction === 'signup' ? '#3dff8a' : 'rgba(61,255,138,0.18)';
+      ctx.fill();
+      ctx.strokeStyle = '#3dff8a'; ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#3dff8a'; ctx.shadowBlur = warn ? 14 : 6;
+      ctx.stroke(); ctx.shadowBlur = 0;
+      text(ctaLabel, cx + ctaW / 2, 220, 11, S.hoverAction === 'signup' ? '#050614' : '#3dff8a', 'center', 700);
+      S.buttons.push({ x: cx, y: 204 + S.btnOffset, w: ctaW, h: 32, action: 'signup' });
+    }
+    ctx.save();
+    ctx.translate(pillX + whoW / 2 - W / 2, 0); // pill sits left of the button
     rr(W / 2 - whoW / 2, 204, whoW, 32, 16);
     ctx.fillStyle = warn ? `rgba(255,179,25,${0.12 + 0.08 * Math.sin(S.time * 4)})`
       : S.hoverAction === 'account' ? 'rgba(61,255,138,0.15)' : 'rgba(255,255,255,0.05)';
@@ -1327,7 +1348,8 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
     text(who, W / 2, 220, 11, st.kind === 'account' ? '#3dff8a' : warn ? '#ffb319' : 'rgba(230,230,255,0.85)', 'center', 600);
-    S.buttons.push({ x: W / 2 - whoW / 2, y: 204 + S.btnOffset, w: whoW, h: 32, action: 'account' });
+    ctx.restore();
+    S.buttons.push({ x: pillX, y: 204 + S.btnOffset, w: whoW, h: 32, action: 'account' });
 
     const ch = Share.challenge;
     if (ch) {
@@ -1353,9 +1375,9 @@
       button(dd.label, W / 2 - 140, 346 + i * 62, 280, 52, dd.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    button('RANKS', W / 2 - 140, 602, 88, 44, '#ffe066', 'board');
-    button('MISSIONS', W / 2 - 44, 602, 88, 44, '#3dff8a', 'missions');
-    button('SKINS', W / 2 + 52, 602, 88, 44, '#ff3df2', 'skins');
+    button('LEADERBOARD', W / 2 - 140, 602, 124, 44, '#ffe066', 'board');
+    button('MISSIONS', W / 2 - 8, 602, 78, 44, '#3dff8a', 'missions');
+    button('SKINS', W / 2 + 78, 602, 62, 44, '#ff3df2', 'skins');
 
     // Player level (tap for missions)
     const lv = Progress.levelInfo();
