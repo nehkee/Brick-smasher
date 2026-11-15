@@ -19,7 +19,7 @@ npx serve .
 
 ## Power-ups
 
-Catch green capsules and dodge red ones.
+Catch green capsules and dodge red ones. Rainbow **?** capsules are a mystery: anything can be inside, good or bad. The same power-up never drops twice in a row, and capsules fall at different speeds.
 
 | Good | Bad |
 |---|---|

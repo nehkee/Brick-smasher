@@ -42,7 +42,8 @@
     shrink:  { label: '-', name: 'SHRINK',      good: false, dur: 12 },
     speed:   { label: '>', name: 'SPEED UP',    good: false, dur: 10 },
     reverse: { label: 'R', name: 'REVERSE',     good: false, dur: 6 },
-    fog:     { label: '?', name: 'FOG',         good: false, dur: 8 },
+    fog:     { label: 'FG', name: 'FOG',        good: false, dur: 8 },
+    mystery: { label: '?', name: 'MYSTERY',     good: true },  // revealed when caught
   };
   const GOOD = ['wide', 'laser', 'magnet', 'multi', 'slow', 'fire'];
   const BAD = ['shrink', 'speed', 'reverse', 'fog'];
@@ -471,19 +472,31 @@
     }
   }
 
-  function maybeDrop(x, y) {
+  // One random power-up: traps per difficulty, rare extra try and Mega Paddle.
+  function rollPower() {
     const d = DIFFS[S.diff];
-    if (Math.random() > d.drop) return;
-    let type;
-    if (Math.random() < d.bad) type = pick(BAD);
-    else if (S.lives < MAX_LIVES && Math.random() < 0.07) type = 'life';
-    else if (Math.random() < 0.06) type = 'mega'; // rare jackpot
-    else type = pick(GOOD);
-    S.capsules.push({ x, y, type, vy: 150, t: 0 });
+    if (Math.random() < d.bad) return pick(BAD);
+    if (S.lives < MAX_LIVES && Math.random() < 0.07) return 'life';
+    if (Math.random() < 0.06) return 'mega'; // rare jackpot
+    return pick(GOOD);
+  }
+
+  function maybeDrop(x, y) {
+    if (Math.random() > DIFFS[S.diff].drop) return;
+    let type = Math.random() < 0.08 ? 'mystery' : rollPower();
+    for (let i = 0; i < 6 && type === S.lastDrop && type !== 'mystery'; i++) type = rollPower(); // no back-to-back repeats
+    S.lastDrop = type;
+    // Capsules fall at different speeds so catches can't be timed by habit.
+    S.capsules.push({ x, y, type, vy: 120 + Math.random() * 75, t: 0 });
   }
 
   // ---------- Power-ups ----------
   function applyPower(type) {
+    if (type === 'mystery') {
+      // Reveal: anything can be inside, good or bad.
+      addFloater(S.paddle.x, PADDLE_Y - 52, '?  MYSTERY  ?', '#ffffff', 13);
+      type = rollPower();
+    }
     const p = POWER[type];
     addFloater(S.paddle.x, PADDLE_Y - 24, p.name, p.good ? '#3dff8a' : '#ff3d6e', 16);
     if (p.good) Sound.good(); else Sound.bad();
@@ -916,16 +929,27 @@
   function drawCapsules() {
     for (const c of S.capsules) {
       const p = POWER[c.type];
-      const color = (c.type === 'life' || c.type === 'mega') ? '#ffe066' : p.good ? '#3dff8a' : '#ff3d6e';
+      const color = c.type === 'mystery' ? `hsl(${(S.time * 240 + c.x) % 360}, 100%, 62%)`
+        : (c.type === 'life' || c.type === 'mega') ? '#ffe066' : p.good ? '#3dff8a' : '#ff3d6e';
       const w = 38, h = 18;
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.rotate(Math.sin(c.t * 5) * 0.12);
       rr(-w / 2, -h / 2, w, h, 9);
-      ctx.fillStyle = color + '40';
+      ctx.fillStyle = c.type === 'mystery' ? 'rgba(255,255,255,0.18)' : color + '40';
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = color;
+      ctx.lineWidth = c.type === 'mystery' ? 2.5 : 2;
+      if (c.type === 'mystery') {
+        // Rainbow outline that slides around, so it never looks like a good or bad capsule.
+        const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+        const shift = (S.time * 0.6) % 1;
+        ['#ff3d3d', '#ffb319', '#3dff8a', '#29f0ff', '#9b5cff', '#ff3df2', '#ff3d3d'].forEach((col, i, arr) => {
+          g.addColorStop((i / (arr.length - 1) + shift) % 1, col);
+        });
+        ctx.strokeStyle = g;
+      } else {
+        ctx.strokeStyle = color;
+      }
       ctx.shadowColor = color;
       ctx.shadowBlur = 12;
       ctx.stroke();
@@ -1415,5 +1439,5 @@
   Account.init(); // returning players resume; new visitors get a guest name automatically
 
   // Hook for automated testing.
-  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx };
+  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx, maybeDrop };
 })();
