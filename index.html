@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#070818">
   <meta name="description" content="Brick Smasher: a neon arcade brick-breaking game with power-ups and 10 levels.">
   <meta name="mobile-web-app-capable" content="yes">
@@ -116,6 +116,23 @@
     </div>
   </div>
 
+  <script>
+    // ?fresh=1 starts over as a brand-new player on this device (guest name,
+    // skins, best scores and login are cleared). Handy for play testing.
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search);
+        if (!q.has('fresh')) return;
+        Object.keys(localStorage).forEach(function (k) {
+          if (k.indexOf('bs-') === 0 || k.indexOf('sb-') === 0) localStorage.removeItem(k);
+        });
+        sessionStorage.clear();
+        q.delete('fresh');
+        var rest = q.toString();
+        history.replaceState(null, '', location.pathname + (rest ? '?' + rest : ''));
+      } catch (e) {}
+    })();
+  </script>
   <script src="src/levels.js"></script>
   <script src="src/audio.js"></script>
   <script src="src/vendor/supabase.js"></script> <!-- @supabase/supabase-js 2.45.4, self-hosted -->

@@ -63,6 +63,14 @@ Every shared link is a challenge: `?c=<score>&d=<difficulty>&n=<name>&l=<level>`
 
 The playing field is always 600 units wide (so levels and scores are fair on every device) and grows taller on tall screens. The canvas always covers the whole screen: on landscape tablets and desktops the background and glowing walls fill the space beside the field, and the paddle follows your finger or mouse anywhere on screen. Tested on 7" tablets, iPad mini, iPad, Galaxy Tab, iPad Pro 12.9", Surface, phones and desktop, in portrait and landscape.
 
+## Browser support
+
+Built for current Chrome, Safari (iOS 14.5+), Samsung Internet, Firefox and Edge, plus the in-app browsers inside Instagram, TikTok and Facebook. Safari-specific handling: audio unlocks on the first tap, no double-tap zoom or pull-to-refresh, no long-press menu, and nothing drawn under the notch. Slow devices switch automatically to a low-effects mode (no glow, lower resolution).
+
+## Testing as a new player
+
+Open `https://brick-smasher-liart.vercel.app/?fresh=1` to clear this device's guest name, skins, best scores and login and start as a brand-new player.
+
 ## Project layout
 
 ```

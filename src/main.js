@@ -57,16 +57,27 @@
   // ---------- Canvas ----------
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  // Glow (shadowBlur) is the most expensive effect on older phones; in low-effects
+  // mode every glow is quietly skipped.
+  (() => {
+    const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+    if (!d || !d.set) return;
+    Object.defineProperty(ctx, 'shadowBlur', {
+      get() { return d.get.call(this); },
+      set(v) { d.set.call(this, lowFx ? 0 : v); },
+    });
+  })();
   // The playing field is always W wide (fair for everyone); its height grows on
   // tall screens. The canvas covers the whole screen: on wide screens (landscape
   // tablets, desktops) the background fills the space beside the field.
+  let lowFx = false;   // set when the device is too slow for full effects
   let VW = W, VH = H; // whole screen in game units
   let OX = 0, OY = 0; // where the field starts on screen, in game units
   let onFieldResize = null; // set once game state exists
   function resize() {
     const oldH = H;
     const iw = Math.max(1, window.innerWidth), ih = Math.max(1, window.innerHeight);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, lowFx ? 1.25 : 2);
     H = Math.round(Math.max(800, Math.min(1400, W * (ih / iw))));
     PADDLE_Y = H - 80;
     const scale = Math.min(iw / W, ih / H);
@@ -1260,7 +1271,8 @@
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   // Stop the browser's follow-up "click" after a tap: panels open on pointerup,
   // and that click would otherwise land on (and close or press) the new panel.
-  canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+  canvas.addEventListener('touchend', (e) => { Sound.unlock(); e.preventDefault(); }, { passive: false });
+  canvas.addEventListener('click', () => Sound.unlock());
 
   function primaryAction() {
     switch (S.mode) {
@@ -1307,7 +1319,21 @@
 
   // ---------- Loop ----------
   let last = performance.now();
+  // Watch frame times during play; if the device averages under ~40fps for a
+  // couple of seconds, switch to low effects for the rest of the session.
+  let perfTime = 0, perfFrames = 0;
+  function watchPerformance(ms) {
+    if (lowFx || S.mode !== 'play' || document.hidden || ms > 500) return;
+    perfTime += ms;
+    perfFrames++;
+    if (perfTime >= 2000) {
+      if (perfTime / perfFrames > 25) { lowFx = true; resize(); }
+      perfTime = 0; perfFrames = 0;
+    }
+  }
+
   function frame(now) {
+    watchPerformance(now - last);
     const raw = Math.min(0.033, Math.max(0, (now - last) / 1000));
     last = now;
     let dt = raw;
@@ -1321,5 +1347,5 @@
   Account.init(); // returning players resume; new visitors get a guest name automatically
 
   // Hook for automated testing.
-  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel };
+  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx };
 })();

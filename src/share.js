@@ -112,7 +112,12 @@ const Share = (() => {
 
   function close() { panel.hidden = true; }
 
-  function popup(url) { window.open(url, '_blank', 'noopener,noreferrer'); }
+  // A real link click is more reliable than window.open in in-app browsers.
+  function popup(url) {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.append(a); a.click(); a.remove();
+  }
 
   async function copy(textToCopy) {
     try { await navigator.clipboard.writeText(textToCopy); return true; } catch (e) {}
@@ -127,7 +132,8 @@ const Share = (() => {
   const actions = {
     async native() {
       const { text, link, card } = current;
-      const file = card && new File([card.blob], 'brick-smasher-score.png', { type: 'image/png' });
+      let file = null;
+      try { file = card && new File([card.blob], 'brick-smasher-score.png', { type: 'image/png' }); } catch (e) {}
       try {
         if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], text: `${text} ${link}`, title: 'Brick Smasher' });

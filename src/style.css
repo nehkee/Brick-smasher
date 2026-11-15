@@ -9,6 +9,10 @@ html, body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;   /* no long-press menu on iOS */
+  overscroll-behavior: none;     /* no pull-to-refresh / rubber-band */
+  touch-action: manipulation;    /* no double-tap zoom (iOS ignores user-scalable=no) */
+  -webkit-text-size-adjust: 100%;
 }
 
 #game {

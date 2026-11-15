@@ -9,6 +9,16 @@ const Sound = (() => {
       try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     }
     if (ac.state === 'suspended') ac.resume();
+    // iOS Safari only fully unlocks audio once a sound starts inside a gesture.
+    if (!unlock.done) {
+      try {
+        const src = ac.createBufferSource();
+        src.buffer = ac.createBuffer(1, 1, 22050);
+        src.connect(ac.destination);
+        src.start(0);
+        unlock.done = true;
+      } catch (e) {}
+    }
   }
 
   function tone(freq, dur, type = 'square', vol = 0.06, slideTo = 0) {
