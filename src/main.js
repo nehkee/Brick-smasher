@@ -32,6 +32,7 @@
 
   const POWER = {
     wide:    { label: 'W', name: 'WIDE PADDLE', good: true,  dur: 15 },
+    mega:    { label: 'XL', name: 'MEGA PADDLE', good: true, dur: 10 }, // rare
     laser:   { label: 'L', name: 'LASER',       good: true,  dur: 10 },
     magnet:  { label: 'M', name: 'MAGNET',      good: true,  dur: 15 },
     multi:   { label: '3', name: 'MULTI-BALL',  good: true },
@@ -278,6 +279,7 @@
   }
 
   function paddleWidth() {
+    if (S.effects.mega) return 230;
     if (S.effects.wide) return 160;
     if (S.effects.shrink) return 64;
     return 100;
@@ -475,6 +477,7 @@
     let type;
     if (Math.random() < d.bad) type = pick(BAD);
     else if (S.lives < MAX_LIVES && Math.random() < 0.07) type = 'life';
+    else if (Math.random() < 0.06) type = 'mega'; // rare jackpot
     else type = pick(GOOD);
     S.capsules.push({ x, y, type, vy: 150, t: 0 });
   }
@@ -504,6 +507,8 @@
     }
     S.effects[type] = p.dur;
     if (OPPOSITE[type]) delete S.effects[OPPOSITE[type]];
+    if (type === 'mega') delete S.effects.shrink;
+    if (type === 'shrink') delete S.effects.mega;
   }
 
   // ---------- Physics ----------
@@ -905,7 +910,7 @@
   function drawCapsules() {
     for (const c of S.capsules) {
       const p = POWER[c.type];
-      const color = c.type === 'life' ? '#ffe066' : p.good ? '#3dff8a' : '#ff3d6e';
+      const color = (c.type === 'life' || c.type === 'mega') ? '#ffe066' : p.good ? '#3dff8a' : '#ff3d6e';
       const w = 38, h = 18;
       ctx.save();
       ctx.translate(c.x, c.y);
