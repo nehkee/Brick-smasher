@@ -152,7 +152,7 @@ const Skins = (() => {
       grid.append(card);
     }
     // Only guests need a note: their skins disappear with the guest name.
-    note.textContent = Account.state.kind === 'account' ? '' : 'Sign up to keep your skins.';
+    note.textContent = Account.state.kind === 'account' ? '' : 'Guest skins reset after 12 hours. Sign up to keep them.';
   }
 
   panel.querySelector('.lb-close').addEventListener('click', () => { panel.hidden = true; });

@@ -44,16 +44,27 @@ const Progress = (() => {
   }
 
   // ---------- Saving / loading ----------
-  function persist() {
+  let dirty = false;
+  function saveNow() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      if (Account.state.kind === 'account') {
-        Account.client.rpc('save_progress', { p_progress: p }).then(() => {}, () => {});
-      } else if (Account.state.kind === 'guest') {
-        try { localStorage.setItem(GUEST_KEY, JSON.stringify(p)); } catch (e) {}
-      }
-    }, 600);
+    if (!dirty) return;
+    dirty = false;
+    if (Account.state.kind === 'account') {
+      Account.client.rpc('save_progress', { p_progress: p }).then(() => {}, () => { dirty = true; });
+    } else if (Account.state.kind === 'guest') {
+      try { localStorage.setItem(GUEST_KEY, JSON.stringify(p)); } catch (e) {}
+    }
   }
+  function persist() {
+    dirty = true;
+    // Guests save instantly on this device; accounts batch server saves briefly.
+    if (Account.state.kind === 'guest') { saveNow(); return; }
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNow, 600);
+  }
+  // Never lose progress when the game is closed or put in the background.
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
   function readGuest() {
     try { return JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { return null; }
@@ -93,6 +104,7 @@ const Progress = (() => {
   function addXp(n) {
     const before = levelInfo().level;
     p.xp += Math.max(0, Math.round(n));
+    persist();
     const after = levelInfo().level;
     if (after > before) rewardHandler({ kind: 'levelup', level: after, title: titleFor(after) });
     return after > before;
