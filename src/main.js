@@ -14,11 +14,12 @@
   const BALL_R = 7;
   const BASE_SPEED = 380;
   const MAX_BALLS = 12;
+  const MAX_LIVES = 2; // two tries per run, on every difficulty
 
   const DIFFS = {
-    easy:   { label: 'EASY',   lives: 5, speed: 0.85, bad: 0.2,  drop: 0.22, color: '#3dff8a' },
-    normal: { label: 'NORMAL', lives: 3, speed: 1.0,  bad: 0.33, drop: 0.18, color: '#29f0ff' },
-    hard:   { label: 'HARD',   lives: 2, speed: 1.2,  bad: 0.45, drop: 0.15, color: '#ff3d6e' },
+    easy:   { label: 'EASY',   speed: 0.85, bad: 0.2,  drop: 0.22, color: '#3dff8a', blurb: 'SLOWER BALL · FEWER TRAPS' },
+    normal: { label: 'NORMAL', speed: 1.0,  bad: 0.33, drop: 0.18, color: '#29f0ff', blurb: 'THE CLASSIC CHALLENGE' },
+    hard:   { label: 'HARD',   speed: 1.2,  bad: 0.45, drop: 0.15, color: '#ff3d6e', blurb: 'FAST BALL · MORE TRAPS' },
   };
   const DIFF_KEYS = ['easy', 'normal', 'hard'];
 
@@ -29,7 +30,7 @@
     multi:   { label: '3', name: 'MULTI-BALL',  good: true },
     slow:    { label: 'S', name: 'SLOW-MO',     good: true,  dur: 10 },
     fire:    { label: 'F', name: 'FIREBALL',    good: true,  dur: 8 },
-    life:    { label: '+', name: 'EXTRA LIFE',  good: true },
+    life:    { label: '+', name: 'EXTRA TRY',   good: true },
     shrink:  { label: '-', name: 'SHRINK',      good: false, dur: 12 },
     speed:   { label: '>', name: 'SPEED UP',    good: false, dur: 10 },
     reverse: { label: 'R', name: 'REVERSE',     good: false, dur: 6 },
@@ -99,7 +100,7 @@
     S.diff = diff;
     S.menuSel = DIFF_KEYS.indexOf(diff);
     S.score = 0;
-    S.lives = DIFFS[diff].lives;
+    S.lives = MAX_LIVES;
     S.newHigh = false;
     S.particles = [];
     loadLevel(0);
@@ -173,7 +174,7 @@
       gameOver(false);
     } else {
       resetBall();
-      S.banner = { text: 'BALL LOST', sub: `${S.lives} ${S.lives === 1 ? 'LIFE' : 'LIVES'} LEFT`, t: 1.6, max: 1.6 };
+      S.banner = { text: 'BALL LOST', sub: S.lives === 1 ? 'LAST TRY!' : `${S.lives} TRIES LEFT`, t: 1.6, max: 1.6 };
     }
   }
 
@@ -274,7 +275,7 @@
     if (Math.random() > d.drop) return;
     let type;
     if (Math.random() < d.bad) type = pick(BAD);
-    else if (Math.random() < 0.07) type = 'life';
+    else if (S.lives < MAX_LIVES && Math.random() < 0.07) type = 'life';
     else type = pick(GOOD);
     S.capsules.push({ x, y, type, vy: 150, t: 0 });
   }
@@ -287,7 +288,7 @@
     burst(S.paddle.x, PADDLE_Y, p.good ? '#3dff8a' : '#ff3d6e', 16, 180);
     if (p.good) S.score += 50;
 
-    if (type === 'life') { S.lives = Math.min(9, S.lives + 1); return; }
+    if (type === 'life') { S.lives = Math.min(MAX_LIVES, S.lives + 1); return; }
     if (type === 'multi') {
       launch();
       const extra = [];
@@ -774,12 +775,12 @@
     const pulse = 18 + 8 * Math.sin(S.time * 2.5);
     glowText('BRICK', W / 2, 150, 72, '#29f0ff', pulse);
     glowText('SMASHER', W / 2, 225, 56, '#ff3df2', pulse);
-    text('CHOOSE YOUR DIFFICULTY', W / 2, 310, 13, 'rgba(230,230,255,0.7)', 'center', 500);
+    text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 310, 13, 'rgba(230,230,255,0.7)', 'center', 500);
 
     DIFF_KEYS.forEach((k, i) => {
       const d = DIFFS[k];
       const y = 340 + i * 92;
-      const sub = `${d.lives} LIVES  ·  BEST ${highScores[k]}`;
+      const sub = `${d.blurb}  ·  BEST ${highScores[k]}`;
       button(d.label, W / 2 - 140, y, 280, 72, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 

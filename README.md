@@ -1,7 +1,7 @@
 # Brick-smasher
 a brick smasher game that will go viral
 
-A neon arcade brick-breaker with 10 levels, 11 power-ups and three difficulty settings. Plain HTML5 canvas and JavaScript, with no build step and no dependencies.
+A neon arcade brick-breaker with 10 levels, 11 power-ups and three difficulty settings. Every run gives you exactly 2 tries; lose both and you start over from level 1. Plain HTML5 canvas and JavaScript, with no build step and no dependencies.
 
 ## Play
 
@@ -23,7 +23,7 @@ Catch green capsules and dodge red ones.
 
 | Good | Bad |
 |---|---|
-| Wide paddle, Laser, Magnet, Multi-ball, Slow-mo, Fireball, Extra life | Shrink, Speed up, Reverse controls, Fog |
+| Wide paddle, Laser, Magnet, Multi-ball, Slow-mo, Fireball, Extra try (only drops after you've lost one) | Shrink, Speed up, Reverse controls, Fog |
 
 ## Bricks
 
