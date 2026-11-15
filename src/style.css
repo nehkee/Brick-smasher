@@ -16,3 +16,114 @@ html, body {
   touch-action: none;
   cursor: pointer;
 }
+
+/* ---------- Leaderboard panel ---------- */
+.lb {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 3, 15, 0.75);
+  font-family: Orbitron, "Segoe UI", Arial, sans-serif;
+  color: #e6e6ff;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.lb[hidden] { display: none; }
+.lb-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 22px 18px 14px;
+  background: #0d0f24;
+  border: 2px solid #ffe066;
+  border-radius: 14px;
+  box-shadow: 0 0 28px rgba(255, 224, 102, 0.35);
+}
+.lb h2 {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 22px;
+  color: #ffe066;
+  text-shadow: 0 0 12px rgba(255, 224, 102, 0.7);
+}
+.lb-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: none;
+  color: #e6e6ff;
+  font-size: 28px;
+  cursor: pointer;
+}
+#lb-form p { margin: 0 0 8px; font-size: 12px; text-align: center; }
+.lb-row { display: flex; gap: 8px; }
+.lb-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 16px;
+  color: #fff;
+  background: #050614;
+  border: 2px solid #29f0ff;
+  border-radius: 8px;
+  outline: none;
+}
+.lb button[type="submit"], .lb-tabs button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.lb button[type="submit"] {
+  padding: 0 16px;
+  font-size: 14px;
+  color: #050614;
+  background: #3dff8a;
+  border: 0;
+}
+.lb button[type="submit"]:disabled { opacity: 0.5; }
+.lb-err { color: #ff3d6e; min-height: 1em; }
+.lb-tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
+.lb-tabs button {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 12px;
+  color: #e6e6ff;
+  background: transparent;
+  border: 1.5px solid rgba(230, 230, 255, 0.3);
+}
+.lb-tabs button[aria-selected="true"] { color: #050614; background: #29f0ff; border-color: #29f0ff; }
+#lb-status { margin: 6px 0; font-size: 12px; text-align: center; color: rgba(230, 230, 255, 0.7); }
+#lb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  font-size: 13px;
+}
+#lb-list li {
+  display: grid;
+  grid-template-columns: 44px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(230, 230, 255, 0.08);
+}
+#lb-list li:nth-child(1) .rank { color: #ffe066; }
+#lb-list li:nth-child(2) .rank { color: #dfe6f5; }
+#lb-list li:nth-child(3) .rank { color: #ffb319; }
+#lb-list li.me { background: rgba(61, 255, 138, 0.15); border-radius: 6px; }
+#lb-list .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lb-list .lv { font-size: 10px; color: rgba(230, 230, 255, 0.5); }
+#lb-list .sc { color: #29f0ff; text-align: right; }

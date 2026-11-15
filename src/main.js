@@ -3,13 +3,15 @@
   'use strict';
 
   // ---------- Constants ----------
-  const W = 600, H = 800;
+  const W = 600;
+  let H = 800; // grows on tall (phone) screens
+  const LAYOUT_H = 800; // menus are laid out in this height and centred
   const HUD_H = 60;
   const COLS = 10, GAP = 4, SIDE = 20;
   const BRICK_W = (W - SIDE * 2 - GAP * (COLS - 1)) / COLS;
   const BRICK_H = 22;
   const BRICK_TOP = 100;
-  const PADDLE_Y = H - 80;
+  let PADDLE_Y = H - 80;
   const PADDLE_H = 14;
   const BALL_R = 7;
   const BASE_SPEED = 380;
@@ -57,6 +59,9 @@
   const ctx = canvas.getContext('2d');
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const ratio = window.innerHeight / Math.max(1, window.innerWidth);
+    H = Math.round(Math.max(800, Math.min(1400, W * ratio)));
+    PADDLE_Y = H - 80;
     const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
     canvas.style.width = `${W * scale}px`;
     canvas.style.height = `${H * scale}px`;
@@ -87,11 +92,63 @@
     newHigh: false,
     buttons: [],
     hoverAction: null,
+    btnOffset: 0,
+    clearTimer: 0,
+    slowmo: 0,
+    perfect: false,
+    lostThisLevel: false,
+    lastLeftCall: 0,
+    passedBest: false,
+    prevBest: 0,
+    runId: 0,
+    rank: null,
+    rankState: 'none', // none | sending | done | error
   };
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  // ---------- Levels (handmade, then endless) ----------
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const ENDLESS_NAMES = ['Overdrive', 'Neon Rain', 'Static', 'Pulse', 'Voltage', 'Afterglow', 'Meltdown', 'Hyperdrive', 'Blackout', 'Shockwave', 'Supernova', 'Glitch'];
+
+  // Deterministic: everyone gets the same level N, which keeps the leaderboard fair.
+  function generateLevel(i) {
+    const r = mulberry32(i * 7919 + 13);
+    const depth = i - LEVELS.length;
+    const rows = Math.min(12, 6 + Math.floor(depth / 3));
+    const pHard = Math.min(0.6, 0.15 + depth * 0.02);
+    const pMid = Math.min(0.5, 0.3 + depth * 0.01);
+    const pMetal = Math.min(0.14, 0.03 + depth * 0.005);
+    const pBomb = 0.06;
+    const pEmpty = 0.1 + r() * 0.2;
+    const out = [];
+    for (let row = 0; row < rows; row++) {
+      let half = '';
+      for (let c = 0; c < 5; c++) {
+        const x = r();
+        if (x < pEmpty) half += '.';
+        else if (x < pEmpty + pMetal) half += 'M';
+        else if (x < pEmpty + pMetal + pBomb) half += 'X';
+        else { const y = r(); half += y < pHard ? '3' : y < pHard + pMid ? '2' : '1'; }
+      }
+      if (!/[123X]/.test(half)) half = half.slice(0, 4) + '2';
+      if (/^M+$/.test(half.replace(/\./g, '')) && !half.includes('.')) half = half.slice(0, 2) + '.' + half.slice(3);
+      out.push(half + [...half].reverse().join(''));
+    }
+    return { name: ENDLESS_NAMES[Math.floor(r() * ENDLESS_NAMES.length)], rows: out };
+  }
+  function getLevel(i) { return i < LEVELS.length ? LEVELS[i] : generateLevel(i); }
+  const isEndless = (i) => i >= LEVELS.length;
+  function levelSpeed(i) { return Math.min(1.9, 1 + 0.05 * Math.min(i, 10) + 0.015 * Math.max(0, i - 10)); }
 
   function setMode(m) { S.mode = m; S.modeTime = 0; S.hoverAction = null; }
 
@@ -102,6 +159,11 @@
     S.score = 0;
     S.lives = MAX_LIVES;
     S.newHigh = false;
+    S.passedBest = false;
+    S.prevBest = highScores[diff];
+    S.runId++;
+    S.rank = null;
+    S.rankState = 'none';
     S.particles = [];
     loadLevel(0);
   }
@@ -109,7 +171,8 @@
   function loadLevel(i) {
     S.level = i;
     S.bricks = [];
-    LEVELS[i].rows.forEach((row, r) => {
+    const lvl = getLevel(i);
+    lvl.rows.forEach((row, r) => {
       [...row].forEach((ch, c) => {
         if (ch === '.') return;
         let type = 'normal', hp = Number(ch);
@@ -124,9 +187,12 @@
     S.capsules = []; S.lasers = []; S.floaters = [];
     S.effects = {};
     S.combo = 0;
+    S.clearTimer = 0;
+    S.lostThisLevel = false;
+    S.lastLeftCall = 0;
     S.paddle.x = S.paddle.target = W / 2;
     resetBall();
-    S.banner = { text: `LEVEL ${i + 1}`, sub: LEVELS[i].name.toUpperCase(), t: 2.2, max: 2.2 };
+    S.banner = { text: `LEVEL ${i + 1}`, sub: (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
     setMode('play');
   }
 
@@ -141,7 +207,7 @@
   }
 
   function ballSpeed(b) {
-    let s = BASE_SPEED * DIFFS[S.diff].speed * (1 + 0.05 * S.level) * b.boost;
+    let s = BASE_SPEED * DIFFS[S.diff].speed * levelSpeed(S.level) * b.boost;
     if (S.effects.slow) s *= 0.65;
     if (S.effects.speed) s *= 1.35;
     return s;
@@ -164,6 +230,7 @@
 
   function loseLife() {
     S.lives--;
+    S.lostThisLevel = true;
     S.combo = 0;
     S.effects = {};
     S.capsules = [];
@@ -186,14 +253,27 @@
     }
   }
 
+  function submitRun(name) {
+    const run = S.runId;
+    S.rankState = 'sending';
+    Leaderboard.submit(name, S.score, S.level + 1, S.diff)
+      .then((rank) => { if (S.runId === run) { S.rank = rank; S.rankState = 'done'; } })
+      .catch(() => { if (S.runId === run) S.rankState = 'error'; });
+  }
+
   function gameOver(won) {
     recordHigh();
+    if (S.score > 0) {
+      const name = load('bs-name', '');
+      if (name) submitRun(name);
+    }
     if (won) { Sound.clear(); setMode('win'); }
     else { Sound.over(); setMode('over'); }
   }
 
   function levelClear() {
-    const bonus = 250 * (S.level + 1) + S.lives * 100;
+    S.perfect = !S.lostThisLevel;
+    const bonus = 250 * (S.level + 1) + S.lives * 100 + (S.perfect ? 1000 : 0);
     S.score += bonus;
     S.clearBonus = bonus;
     S.capsules = []; S.lasers = [];
@@ -203,7 +283,6 @@
         life: rand(0.8, 1.6), max: 1.6, color: pick(['#29f0ff', '#ff3df2', '#ffb319', '#3dff8a']), size: rand(2, 4),
       });
     }
-    if (S.level >= LEVELS.length - 1) { gameOver(true); return; }
     Sound.clear();
     setMode('clear');
   }
@@ -256,6 +335,10 @@
     if (mult > 1) addFloater(cx, cy, `+${pts} x${mult}`, '#ffe066', 13);
     burst(cx, cy, brickColor(br));
     Sound.brick(S.combo);
+    if (S.combo % 10 === 0) {
+      addFloater(W / 2, H * 0.45, `${S.combo} COMBO!`, '#ff3df2', 26);
+      S.shake = Math.max(S.shake, 6);
+    }
     maybeDrop(cx, cy);
     if (br.type === 'bomb') {
       S.shake = Math.max(S.shake, 10);
@@ -372,7 +455,7 @@
   const keys = { left: false, right: false };
   let pointerX = null, usePointer = false;
 
-  function update(dt) {
+  function update(dt, realDt = dt) {
     S.time += dt;
     S.modeTime += dt;
 
@@ -385,6 +468,19 @@
     if (S.mode !== 'play') return;
 
     if (S.banner) { S.banner.t -= dt; if (S.banner.t <= 0) S.banner = null; }
+
+    // Brief slow-motion freeze after the last brick breaks.
+    if (S.clearTimer > 0) {
+      S.clearTimer -= realDt;
+      if (S.clearTimer <= 0) levelClear();
+      return;
+    }
+
+    if (!S.passedBest && S.prevBest > 0 && S.score > S.prevBest) {
+      S.passedBest = true;
+      S.banner = { text: 'NEW BEST!', sub: 'KEEP GOING', t: 1.4, max: 1.4 };
+      Sound.good();
+    }
 
     for (const k of Object.keys(S.effects)) {
       S.effects[k] -= dt;
@@ -468,7 +564,15 @@
 
     for (const br of S.bricks) if (br.flash > 0) br.flash -= dt;
 
-    if (!S.bricks.some((br) => br.alive && br.type !== 'metal')) levelClear();
+    const left = S.bricks.reduce((n, br) => n + (br.alive && br.type !== 'metal' ? 1 : 0), 0);
+    if (left === 0) {
+      S.clearTimer = 0.9;
+      S.slowmo = 0.9;
+      S.capsules = [];
+    } else if (left <= 3 && left !== S.lastLeftCall) {
+      S.lastLeftCall = left;
+      addFloater(W / 2, H * 0.55, left === 1 ? 'LAST BRICK!' : `${left} BRICKS LEFT`, '#ffe066', 18);
+    }
   }
 
   // ---------- Drawing helpers ----------
@@ -514,7 +618,7 @@
     ctx.shadowBlur = 0;
     text(label, x + w / 2, y + h / 2 - (sub ? 8 : 0), 22, color);
     if (sub) text(sub, x + w / 2, y + h / 2 + 16, 11, 'rgba(230,230,255,0.6)', 'center', 500);
-    S.buttons.push({ x, y, w, h, action });
+    S.buttons.push({ x, y: y + S.btnOffset, w, h, action });
   }
 
   // ---------- Draw ----------
@@ -685,7 +789,7 @@
 
     text('SCORE', 20, 18, 10, 'rgba(230,230,255,0.55)', 'left', 500);
     glowText(String(S.score), 20, 40, 20, '#29f0ff', 8, 'left');
-    text(`LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, 'rgba(230,230,255,0.55)', 'center', 500);
+    text(isEndless(S.level) ? `ENDLESS · LEVEL ${S.level + 1}` : `LEVEL ${S.level + 1}/${LEVELS.length}`, W / 2, 18, 10, isEndless(S.level) ? '#ff3df2' : 'rgba(230,230,255,0.55)', 'center', 500);
     text(DIFFS[S.diff].label, W / 2, 40, 14, DIFFS[S.diff].color);
 
     for (let i = 0; i < Math.min(S.lives, 9); i++) {
@@ -707,6 +811,10 @@
     ctx.fillRect(bx + 18, by + 9, 4, 14);
     if (S.mode === 'play') S.buttons.push({ x: bx - 6, y: by - 6, w: 44, h: 44, action: 'pause' });
 
+    if (S.prevBest > 0) {
+      const beat = S.score > S.prevBest;
+      text(beat ? 'NEW BEST!' : `BEST ${S.prevBest}`, 20, HUD_H + 16, 10, beat ? '#ffe066' : 'rgba(230,230,255,0.45)', 'left', 600);
+    }
     if (S.combo >= 4) glowText(`COMBO ${S.combo}`, W / 2, HUD_H + 18, 13, '#ffe066', 10);
 
     let x = 14;
@@ -732,20 +840,20 @@
     if (S.banner) {
       const b = S.banner;
       ctx.globalAlpha = clamp(Math.min(b.t * 2, (b.max - b.t) * 4 + 0.2), 0, 1);
-      glowText(b.text, W / 2, 470, 40, '#ffffff', 24);
-      if (b.sub) glowText(b.sub, W / 2, 512, 16, '#ff3df2', 12);
+      glowText(b.text, W / 2, H * 0.58, 40, '#ffffff', 24);
+      if (b.sub) glowText(b.sub, W / 2, H * 0.58 + 42, 16, '#ff3df2', 12);
       ctx.globalAlpha = 1;
     }
     if (S.balls.some((ball) => ball.stuck)) {
       ctx.globalAlpha = 0.55 + 0.35 * Math.sin(S.time * 5);
-      text('TAP / CLICK / SPACE TO LAUNCH', W / 2, 580, 12, 'rgba(230,230,255,0.9)', 'center', 500);
+      text('TAP / CLICK / SPACE TO LAUNCH', W / 2, H * 0.58 + 105, 12, 'rgba(230,230,255,0.9)', 'center', 500);
       ctx.globalAlpha = 1;
     }
   }
 
   function dim(a = 0.72) {
     ctx.fillStyle = `rgba(4,3,15,${a})`;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, -H, W, H * 3);
   }
 
   function drawSoundButton(y) {
@@ -756,7 +864,7 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
     text(label, W / 2, y + 17, 12, 'rgba(230,230,255,0.8)', 'center', 500);
-    S.buttons.push({ x, y, w, h: 34, action: 'mute' });
+    S.buttons.push({ x, y: y + S.btnOffset, w, h: 34, action: 'mute' });
   }
 
   function drawMenu() {
@@ -784,10 +892,10 @@
       button(d.label, W / 2 - 140, y, 280, 72, d.color, `start:${k}`, sub, !S.hoverAction && S.menuSel === i);
     });
 
-    drawSoundButton(625);
-    text('MOVE: mouse · touch-drag · ← →     LAUNCH: click · tap · space', W / 2, 695, 10, 'rgba(230,230,255,0.5)', 'center', 500);
-    text('PAUSE: P / Esc     MUTE: M', W / 2, 715, 10, 'rgba(230,230,255,0.5)', 'center', 500);
-    text('Catch green capsules · dodge red ones', W / 2, 750, 12, '#3dff8a', 'center', 500);
+    button('LEADERBOARD', W / 2 - 140, 616, 280, 48, '#ffe066', 'board');
+    drawSoundButton(678);
+    text('MOVE: mouse · touch-drag · ← →     LAUNCH: click · tap · space     PAUSE: P', W / 2, 734, 9, 'rgba(230,230,255,0.5)', 'center', 500);
+    text('Catch green capsules · dodge red ones · levels never end', W / 2, 762, 11, '#3dff8a', 'center', 500);
   }
 
   function drawPaused() {
@@ -800,27 +908,40 @@
 
   function drawClear() {
     dim(0.55);
-    glowText('LEVEL CLEAR!', W / 2, 300, 44, '#3dff8a', 24);
+    glowText('LEVEL CLEAR!', W / 2, 270, 44, '#3dff8a', 24);
+    if (S.perfect) glowText('PERFECT! +1000', W / 2, 322, 20, '#ff3df2', 14 + 6 * Math.sin(S.time * 6));
     text(`BONUS +${S.clearBonus}`, W / 2, 360, 18, '#ffe066');
     text(`SCORE ${S.score}`, W / 2, 395, 16, '#ffffff');
-    if (S.modeTime > 0.6) button('NEXT LEVEL', W / 2 - 120, 450, 240, 60, '#29f0ff', 'next', null, true);
+    const unlock = S.level + 1 === LEVELS.length;
+    if (unlock) glowText('ENDLESS MODE UNLOCKED', W / 2, 432, 16, '#29f0ff', 12);
+    if (S.modeTime > 0.6) button(unlock ? 'ENTER ENDLESS' : 'NEXT LEVEL', W / 2 - 120, 465, 240, 60, '#29f0ff', 'next', null, true);
   }
 
-  function drawEnd(won) {
-    dim(0.78);
-    if (won) {
-      glowText('YOU WIN!', W / 2, 240, 56, '#ffe066', 26);
-      text(`ALL ${LEVELS.length} LEVELS SMASHED ON ${DIFFS[S.diff].label}`, W / 2, 295, 13, 'rgba(230,230,255,0.75)', 'center', 500);
+  function drawEnd() {
+    dim(0.8);
+    glowText('GAME OVER', W / 2, 190, 52, '#ff3d6e', 26);
+    text(`REACHED LEVEL ${S.level + 1}${isEndless(S.level) ? ' (ENDLESS)' : ''} ON ${DIFFS[S.diff].label}`, W / 2, 242, 13, 'rgba(230,230,255,0.75)', 'center', 500);
+    glowText(String(S.score), W / 2, 305, 52, '#29f0ff', 18);
+    if (S.newHigh) {
+      glowText('NEW PERSONAL BEST!', W / 2, 355, 18, '#ffe066', 14 + 6 * Math.sin(S.time * 6));
+    } else if (S.prevBest > 0 && S.prevBest - S.score <= S.prevBest * 0.2) {
+      glowText(`SO CLOSE! ${S.prevBest - S.score} FROM YOUR BEST`, W / 2, 355, 15, '#ffe066', 10);
     } else {
-      glowText('GAME OVER', W / 2, 240, 52, '#ff3d6e', 26);
-      text(`REACHED LEVEL ${S.level + 1} ON ${DIFFS[S.diff].label}`, W / 2, 295, 13, 'rgba(230,230,255,0.75)', 'center', 500);
+      text(`BEST ${highScores[S.diff]}`, W / 2, 355, 14, 'rgba(230,230,255,0.6)', 'center', 500);
     }
-    glowText(String(S.score), W / 2, 365, 48, '#29f0ff', 18);
-    if (S.newHigh) glowText('NEW HIGH SCORE!', W / 2, 415, 18, '#ffe066', 14 + 6 * Math.sin(S.time * 6));
-    else text(`BEST ${highScores[S.diff]}`, W / 2, 415, 14, 'rgba(230,230,255,0.6)', 'center', 500);
-    if (S.modeTime > 0.8) {
-      button('PLAY AGAIN', W / 2 - 120, 470, 240, 60, '#3dff8a', `start:${S.diff}`);
-      button('MAIN MENU', W / 2 - 120, 550, 240, 60, '#ff3df2', 'menu');
+
+    // Leaderboard status
+    const y = 392;
+    if (S.rankState === 'done') glowText(`#${S.rank} ON THE ${DIFFS[S.diff].label} LEADERBOARD`, W / 2, y, 15, DIFFS[S.diff].color, 10);
+    else if (S.rankState === 'sending') text('SUBMITTING SCORE…', W / 2, y, 12, 'rgba(230,230,255,0.6)', 'center', 500);
+    else if (S.rankState === 'error') text('COULD NOT REACH LEADERBOARD', W / 2, y, 12, '#ff3d6e', 'center', 500);
+
+    if (S.modeTime > 0.5) {
+      button('PLAY AGAIN', W / 2 - 130, 425, 260, 64, '#3dff8a', `start:${S.diff}`, null, true);
+      const canSave = S.score > 0 && (S.rankState === 'none' || S.rankState === 'error');
+      button(canSave ? 'SAVE MY SCORE' : 'LEADERBOARD', W / 2 - 130, 505, 260, 52, '#ffe066', canSave ? 'save' : 'board');
+      button('MAIN MENU', W / 2 - 130, 573, 260, 52, '#ff3df2', 'menu');
+      text('SPACE / ENTER TO PLAY AGAIN', W / 2, 650, 10, 'rgba(230,230,255,0.4)', 'center', 500);
     }
   }
 
@@ -830,8 +951,17 @@
     if (S.shake > 0) ctx.translate(rand(-S.shake, S.shake) * 0.5, rand(-S.shake, S.shake) * 0.5);
 
     drawBackground();
+    const off = (H - LAYOUT_H) / 2;
+    const centred = (fn) => {
+      ctx.save();
+      ctx.translate(0, off);
+      S.btnOffset = off;
+      fn();
+      ctx.restore();
+      S.btnOffset = 0;
+    };
     if (S.mode === 'menu') {
-      drawMenu();
+      centred(drawMenu);
       drawParticles();
       return;
     }
@@ -844,10 +974,9 @@
     drawParticles();
     drawHUD();
     if (S.mode === 'play') drawBanner();
-    if (S.mode === 'paused') drawPaused();
-    if (S.mode === 'clear') drawClear();
-    if (S.mode === 'over') drawEnd(false);
-    if (S.mode === 'win') drawEnd(true);
+    if (S.mode === 'paused') centred(drawPaused);
+    if (S.mode === 'clear') centred(drawClear);
+    if (S.mode === 'over' || S.mode === 'win') centred(drawEnd);
   }
 
   // ---------- Input ----------
@@ -860,6 +989,20 @@
       case 'menu': setMode('menu'); S.particles = []; return true;
       case 'next': loadLevel(S.level + 1); return true;
       case 'mute': Sound.toggleMute(); return true;
+      case 'board': Leaderboard.open({ diff: S.mode === 'menu' ? DIFF_KEYS[S.menuSel] : S.diff }); return true;
+      case 'save': {
+        const run = S.runId;
+        Leaderboard.open({
+          diff: S.diff,
+          submission: { score: S.score, level: S.level + 1, diff: S.diff },
+          defaultName: load('bs-name', ''),
+          onSubmitted: (rank, name) => {
+            save('bs-name', name);
+            if (S.runId === run) { S.rank = rank; S.rankState = 'done'; }
+          },
+        });
+        return true;
+      }
     }
     return false;
   }
@@ -903,11 +1046,12 @@
       case 'play': launch(); break;
       case 'paused': setMode('play'); break;
       case 'clear': if (S.modeTime > 0.6) loadLevel(S.level + 1); break;
-      case 'over': case 'win': if (S.modeTime > 0.8) startGame(S.diff); break;
+      case 'over': case 'win': if (S.modeTime > 0.5) startGame(S.diff); break;
     }
   }
 
   window.addEventListener('keydown', (e) => {
+    if (Leaderboard.isOpen()) return;
     Sound.unlock();
     const k = e.key;
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') { keys.left = true; e.preventDefault(); }
@@ -938,14 +1082,16 @@
   // ---------- Loop ----------
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(0.033, Math.max(0, (now - last) / 1000));
+    const raw = Math.min(0.033, Math.max(0, (now - last) / 1000));
     last = now;
-    update(dt);
+    let dt = raw;
+    if (S.slowmo > 0) { S.slowmo -= raw; dt = raw * 0.3; }
+    update(dt, raw);
     draw();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 
   // Hook for automated testing.
-  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower };
+  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel };
 })();

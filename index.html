@@ -15,8 +15,31 @@
 </head>
 <body>
   <canvas id="game" aria-label="Brick Smasher game"></canvas>
+
+  <div id="panel" class="lb" hidden>
+    <div class="lb-card" role="dialog" aria-labelledby="lb-title">
+      <button class="lb-close" aria-label="Close">&times;</button>
+      <h2 id="lb-title">LEADERBOARD</h2>
+      <form id="lb-form" hidden>
+        <p id="lb-form-msg"></p>
+        <div class="lb-row">
+          <input id="lb-name" maxlength="12" placeholder="Your nickname" autocomplete="nickname" enterkeyhint="send">
+          <button type="submit">SUBMIT</button>
+        </div>
+        <p id="lb-form-err" class="lb-err"></p>
+      </form>
+      <div class="lb-tabs" role="tablist">
+        <button data-diff="easy" role="tab">EASY</button>
+        <button data-diff="normal" role="tab">NORMAL</button>
+        <button data-diff="hard" role="tab">HARD</button>
+      </div>
+      <p id="lb-status"></p>
+      <ol id="lb-list"></ol>
+    </div>
+  </div>
   <script src="src/levels.js"></script>
   <script src="src/audio.js"></script>
+  <script src="src/leaderboard.js"></script>
   <script src="src/main.js"></script>
 </body>
 </html>
