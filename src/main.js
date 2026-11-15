@@ -1352,11 +1352,10 @@
     S.buttons.push({ x: pillX, y: 204 + S.btnOffset, w: whoW, h: 32, action: 'account' });
 
     const ch = Share.challenge;
+    // Only shown when someone opened a friend's challenge link.
     if (ch) {
       glowText(`${ch.name.toUpperCase()} SCORED ${ch.score.toLocaleString()} ON ${DIFFS[ch.diff].label}. BEAT IT!`, W / 2, 256, 12,
         DIFFS[ch.diff].color, 8 + 6 * Math.sin(S.time * 4));
-    } else {
-      text('2 TRIES. NO SAVES. HOW FAR CAN YOU GO?', W / 2, 256, 12, 'rgba(230,230,255,0.7)', 'center', 500);
     }
 
     // Daily challenge
