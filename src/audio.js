@@ -22,7 +22,7 @@ const Settings = (() => {
 })();
 
 const Sound = (() => {
-  let ac = null, master = null, sfxBus = null, musicBus = null;
+  let ac = null, master = null, sfxBus = null, musicBus = null, musicFilter = null;
 
   function unlock() {
     if (!ac) {
@@ -30,7 +30,9 @@ const Sound = (() => {
         ac = new (window.AudioContext || window.webkitAudioContext)();
         master = ac.createGain(); master.gain.value = 0.9; master.connect(ac.destination);
         sfxBus = ac.createGain(); sfxBus.connect(master);
-        musicBus = ac.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+        musicFilter = ac.createBiquadFilter(); musicFilter.type = 'lowpass'; musicFilter.frequency.value = 18000;
+        musicFilter.connect(master);
+        musicBus = ac.createGain(); musicBus.gain.value = 0; musicBus.connect(musicFilter);
       } catch (e) { return; }
     }
     if (ac.state === 'suspended') ac.resume();
@@ -86,11 +88,14 @@ const Sound = (() => {
   }
 
   // ---------- Music ----------
-  // Two original loops built from a minor chord progression: a calm one for
-  // menus and a driving one for gameplay. Scheduled a little ahead in time.
-  const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]]; // Am F C G
+  // Original generated music. Each world (theme) sets the key, scale, tempo and
+  // chord progression; layers fade in as the game's intensity rises (combo,
+  // level progress, FOCUS), so the music builds with the player.
   const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  let theme = { root: 57, scale: [0, 3, 5, 7, 10], bpm: 128, prog: [[0, 3], [8, 4], [3, 4], [10, 4]] };
+  let intensity = 0;
   let track = null, step = 0, nextTime = 0, timer = null;
+  const beatTimes = []; // recently scheduled beat times, for visuals synced to the music
 
   function mNote(freq, t, dur, type, vol) {
     const o = ac.createOscillator();
@@ -112,25 +117,42 @@ const Sound = (() => {
     src.buffer = noiseBuf; src.connect(f).connect(g).connect(musicBus);
     src.start(t, Math.random() * 0.5); src.stop(t + 0.06);
   }
-  function mKick(t) {
+  function mKick(t, vol = 0.5) {
     const o = ac.createOscillator(); const g = ac.createGain();
     o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
-    g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.2);
+  }
+
+  function chordAt(bar) {
+    const [off, third] = theme.prog[bar % theme.prog.length];
+    const r = theme.root + off;
+    return [r, r + third, r + 7];
   }
 
   function scheduleStep(t) {
     const game = track === 'game';
-    const bar = Math.floor(step / 16) % 4;
+    const bar = Math.floor(step / 16) % theme.prog.length;
     const s16 = step % 16;
-    const chord = CHORDS[bar];
-    const sixteenth = (60 / (game ? 128 : 96)) / 4;
+    const chord = chordAt(bar);
+    const sixteenth = (60 / (game ? theme.bpm : theme.bpm * 0.72)) / 4;
+    if (s16 % 4 === 0) { beatTimes.push(t); if (beatTimes.length > 8) beatTimes.shift(); }
     if (game) {
-      if (s16 % 4 === 0) mKick(t);
-      if (s16 % 2 === 1) mHat(t, 0.05);
-      if (s16 % 2 === 0) mNote(midi(chord[0] - 24), t, sixteenth * 1.8, 'sawtooth', 0.07);
+      const x = intensity;
+      // Layer 1 (always): kick and bass pulse
+      if (s16 % 4 === 0) mKick(t, 0.35 + 0.2 * x);
+      if (s16 % 2 === 0) mNote(midi(chord[0] - 24), t, sixteenth * 1.8, 'sawtooth', 0.05 + 0.03 * x);
+      // Layer 2 (building): off-beat hats and a soft pad
+      if (x > 0.25 && s16 % 2 === 1) mHat(t, 0.025 + 0.035 * x);
+      if (x > 0.25 && s16 === 0) chord.forEach((n) => mNote(midi(n), t, sixteenth * 15, 'triangle', 0.018));
+      // Layer 3 (intense): arpeggio
       const arp = [0, 1, 2, 1, 0, 2, 1, 2];
-      if (s16 % 2 === 0) mNote(midi(chord[arp[(s16 / 2) % 8]] + 12), t, sixteenth * 1.5, 'square', 0.025);
+      if (x > 0.5 && s16 % 2 === 0) mNote(midi(chord[arp[(s16 / 2) % 8]] + 12), t, sixteenth * 1.5, 'square', 0.022);
+      // Layer 4 (peak): fast high sparkle and double kick
+      if (x > 0.78) {
+        mNote(midi(chord[s16 % 3] + 24), t, sixteenth * 0.9, 'sine', 0.018);
+        if (s16 % 8 === 6) mKick(t, 0.3);
+      }
     } else {
       if (s16 === 0) chord.forEach((n) => mNote(midi(n), t, sixteenth * 15, 'triangle', 0.035));
       if (s16 % 4 === 0) mNote(midi(chord[(s16 / 4) % 3] + 12), t, sixteenth * 3, 'sine', 0.03);
@@ -138,6 +160,17 @@ const Sound = (() => {
     }
     step++;
     return sixteenth;
+  }
+
+  // 0..1 position within the current beat (1 = just hit), for pulsing visuals.
+  function beatPulse() {
+    if (!ac || !timer || !beatTimes.length) return 0;
+    const now = ac.currentTime;
+    let last = null;
+    for (const b of beatTimes) if (b <= now) last = b;
+    if (last === null) return 0;
+    const beatLen = 60 / theme.bpm;
+    return Math.max(0, 1 - (now - last) / (beatLen * 0.6));
   }
 
   function pump() {
@@ -166,6 +199,24 @@ const Sound = (() => {
     applyMusic();
   }
 
+  function setTheme(t) {
+    if (!t || (t.root === theme.root && t.bpm === theme.bpm && t.scale === theme.scale)) return;
+    theme = t;
+    step = 0;
+  }
+  // FOCUS: muffle the music as if time had slowed.
+  function setFocus(on) {
+    if (!ac) return;
+    musicFilter.frequency.cancelScheduledValues(ac.currentTime);
+    musicFilter.frequency.setTargetAtTime(on ? 650 : 18000, ac.currentTime, on ? 0.08 : 0.4);
+  }
+  // A note in the current world's key: degree 0, 1, 2… climbs the scale.
+  function noteFreq(degree) {
+    const sc = theme.scale;
+    const d = Math.max(0, degree);
+    return midi(theme.root + 12 + sc[d % sc.length] + 12 * Math.floor(d / sc.length));
+  }
+
   Settings.onChange((k) => { if (k === 'music') applyMusic(); });
   document.addEventListener('visibilitychange', () => {
     if (!ac) return;
@@ -175,13 +226,20 @@ const Sound = (() => {
   return {
     unlock,
     music,
+    setTheme,
+    setFocus,
+    beatPulse,
+    setIntensity: (x) => { intensity = Math.max(0, Math.min(1, x)); },
+    focusOn: () => [0, 4, 7, 12].forEach((n, i) => tone(noteFreq(n), 0.25, 'sine', 0.05, 0, i * 0.05)),
+    focusOff: () => { noise(0.5, 0.12, 1800); tone(noteFreq(10), 0.4, 'triangle', 0.06, noteFreq(0)); },
     isMuted: () => !Settings.get('sfx'),
     toggleMute: () => !Settings.toggle('sfx'),
     paddle: () => { tone(200, 0.09, 'square', 0.05, 150); noise(0.04, 0.05, 2500, 'bandpass'); },
     wall: () => tone(170, 0.04, 'triangle', 0.035),
     hit: () => { tone(330, 0.06, 'square', 0.04); noise(0.04, 0.04, 3000, 'bandpass'); },
+    // Musical bricks: each break plays the next note of the world's scale.
     brick: (combo) => {
-      const f = 440 * Math.pow(2, Math.min(combo, 24) / 12);
+      const f = noteFreq(Math.min(combo, 14) - 1);
       tone(f, 0.08, 'square', 0.045);
       tone(f * 1.5, 0.06, 'triangle', 0.02, 0, 0.02);
       noise(0.06, 0.06, 4000, 'bandpass');

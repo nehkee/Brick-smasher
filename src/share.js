@@ -3,7 +3,8 @@
 // and save image. Shared links carry a challenge ("NeonFox42 scored 12,340 on
 // Hard. Beat it!") that the friend sees when they open the game.
 const Share = (() => {
-  const SITE = 'https://brick-smasher-liart.vercel.app/';
+  // Links point to whichever site the player is on (Vercel or Cloudflare).
+  const SITE = `${location.origin}/`;
   const DIFF_LABEL = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD', berserk: 'BERSERK' };
   const DIFF_COLOR = { easy: '#3dff8a', normal: '#29f0ff', hard: '#ff3d6e', berserk: '#ff8a3d' };
 

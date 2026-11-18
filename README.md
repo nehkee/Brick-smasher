@@ -72,6 +72,18 @@ Brick shards, explosion shockwaves, a split-second freeze on big hits, paddle sq
 
 All modes have 2 tries per run. The score bonus applies to bricks, power-ups and level-clear bonuses (not the daily challenge).
 
+## Worlds, intensity and FOCUS
+
+Inspired by the idea of music and visuals that respond to play:
+- **Five worlds** (Neon City, Deep Ocean, Solar Flare, Aurora, Cosmic Void) change every 2 levels, each with its own colours, background effect (rain, bubbles, embers, aurora ribbons, warp stars), music key and tempo. The daily challenge picks a world from its seed.
+- **Intensity** (level progress, combo, FOCUS, Berserk clock) adds music layers, speeds up the background and makes it pulse on the beat.
+- **Musical bricks:** every break plays the next note of the world's scale.
+- **FOCUS:** break 36 bricks to fill the meter, then tap FOCUS (or press F) for 7 seconds of slowed time and double points; the Berserk clock is frozen.
+
+## Hosting
+
+Live on Vercel; also ready for Cloudflare Pages (`bash build.sh`, output `dist`). See `docs/hosting-platforms.md`.
+
 ## Berserk mode
 
 A timed mode with its own leaderboard: a fast ball and 2:00 per level. The clock starts when the ball is launched, stops while paused, ticks in the last 10 seconds, and running out costs a try (the clock refills and the bricks stay). Seconds left when a level is cleared are worth 50 points each.

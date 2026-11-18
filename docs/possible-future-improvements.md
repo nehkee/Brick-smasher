@@ -151,6 +151,21 @@ On-screen words that celebrate great play, like a puzzle game's "praise" pop-ups
 6. **Privacy policy and terms.** Needed for app stores and good practice now: what's stored (username, scores, progress, hashed network address for sign-up limits), how to delete it, and (if added later) the Starknet integration.
 7. **Monitoring.** Periodically review Supabase's security advisor and logs for unusual traffic (bursts of sign-ups or scores).
 
+## 5. More ideas inspired by Tetris Effect / Tetris Effect: Connected
+
+**Already built (Nov 2026):** five intensity **worlds** (Neon City, Deep Ocean, Solar Flare, Aurora, Cosmic Void) changing every 2 levels with their own colours, background effects, music key and tempo; music and visuals that **build with intensity** (combo, level progress, FOCUS, Berserk clock) and pulse on the beat; **musical bricks** (each break plays the next note of the world's scale); and the **FOCUS** meter (fill by breaking bricks, then slow time and score double; Berserk clock frozen).
+
+**Still to do (not built yet)**
+1. **Zen / Chill mode:** no lives lost, no timer, relaxing music; play to unwind. No leaderboard.
+2. **Journey mode:** a curated playlist of worlds with a story-like flow and a final "boss" world; unlock the next world by clearing the last.
+3. **Mystery mode:** random events every ~20 seconds (bricks shift down, ball doubles in size, paddle splits in two, gravity tilt, bricks change colour). Many players love the chaos.
+4. **Score Attack (3 minutes):** highest score in a fixed time; its own leaderboard.
+5. **Countdown / Clear-N:** clear 150 bricks as fast as possible; ranked by time.
+6. **Co-op "Connected"-style boss levels:** 2–3 players (live or by turns) against a big boss brick with health; needs online play (larger project).
+7. **Weekly rotating event:** one special rule set for the week with its own board and a cosmetic reward.
+8. **Bigger world finishers:** a full-screen celebration when moving to a new world (music swell, particles forming the world's symbol).
+9. **Accessibility for the effects:** a "reduce flashing / calm visuals" setting for people sensitive to motion or strobing.
+
 ---
 
 See also: `docs/monetization-plan.md` (parked money plan).

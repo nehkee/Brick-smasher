@@ -28,6 +28,30 @@
   };
   const DIFF_KEYS = ['easy', 'normal', 'hard', 'berserk'];
   const LEVEL_TIME = 120; // seconds per level in Berserk
+
+  // Intensity worlds: every 2 levels the world changes (colours, background
+  // effect, music key and tempo). Within a level the music and visuals build
+  // as the combo grows and the level nears its end.
+  const MINOR = [[0, 3], [8, 4], [3, 4], [10, 4]];
+  const MAJOR = [[0, 4], [5, 4], [9, 3], [7, 4]];
+  const WORLDS = [
+    { name: 'NEON CITY',   bg: ['#070818', '#170a2e'], grid: 'rgba(140,90,255,0.08)', accent: '#29f0ff', fx: 'rain',
+      music: { root: 57, scale: [0, 3, 5, 7, 10], bpm: 128, prog: MINOR } },
+    { name: 'DEEP OCEAN',  bg: ['#020b18', '#04314a'], grid: 'rgba(41,200,255,0.07)', accent: '#3dd6ff', fx: 'bubbles',
+      music: { root: 50, scale: [0, 2, 3, 7, 9], bpm: 112, prog: [[0, 3], [10, 4], [5, 3], [3, 4]] } },
+    { name: 'SOLAR FLARE', bg: ['#140404', '#3a1206'], grid: 'rgba(255,138,61,0.08)', accent: '#ff8a3d', fx: 'embers',
+      music: { root: 52, scale: [0, 2, 4, 7, 9], bpm: 138, prog: MAJOR } },
+    { name: 'AURORA',      bg: ['#020f0c', '#0a1f35'], grid: 'rgba(61,255,138,0.06)', accent: '#3dff8a', fx: 'aurora',
+      music: { root: 55, scale: [0, 2, 4, 7, 11], bpm: 118, prog: [[0, 4], [9, 3], [5, 4], [7, 4]] } },
+    { name: 'COSMIC VOID', bg: ['#04010b', '#1d0636'], grid: 'rgba(255,61,242,0.07)', accent: '#ff3df2', fx: 'stars',
+      music: { root: 53, scale: [0, 3, 5, 7, 10], bpm: 144, prog: MINOR } },
+  ];
+
+  // FOCUS: fill the meter by breaking bricks, then tap FOCUS to slow time
+  // (ball, capsules, lasers and the Berserk clock) and score double.
+  const FOCUS_MAX = 36;      // bricks to fill the meter
+  const FOCUS_TIME = 7;      // seconds of focus
+  const FOCUS_SLOW = 0.35;   // world speed during focus
   // Desktop-style device (mouse + keyboard): show keyboard hints only there.
   const HAS_KEYBOARD = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
@@ -115,6 +139,13 @@
     waves: [],          // expanding shockwave rings
     hitstop: 0,         // brief freeze on big impacts
     paddleSquash: 0,
+    world: 0,
+    intensity: 0,
+    bgParts: [],
+    totalBreakable: 1,
+    focusMeter: 0,
+    focusTime: 0,
+    focusBricks: 0,
     lastTick: 0,
     timeBonus: 0,
     beatChallenge: false,
@@ -244,7 +275,40 @@
   function setMode(m) {
     S.mode = m; S.modeTime = 0; S.hoverAction = null;
     Sound.music(m === 'play' || m === 'paused' || m === 'clear' ? 'game' : 'menu');
+    if (m !== 'play' && m !== 'paused') { endFocus(true); Sound.setIntensity(0); }
   }
+  const world = () => WORLDS[S.world] || WORLDS[0];
+  function setWorld(i) {
+    const changed = i !== S.world;
+    S.world = i;
+    Sound.setTheme(world().music);
+    if (changed || !S.bgParts.length) S.bgParts = [];
+    return changed;
+  }
+  function endFocus(silent) {
+    if (S.focusTime <= 0) return;
+    S.focusTime = 0;
+    Sound.setFocus(false);
+    if (!silent) {
+      Sound.focusOff();
+      Haptics.good();
+      addFloater(W / 2, H * 0.45, `FOCUS · ${S.focusBricks} BRICKS`, world().accent, 22);
+      wave(W / 2, H * 0.45, 360, world().accent, 0.6);
+      S.shake = Math.max(S.shake, 6);
+    }
+  }
+  function activateFocus() {
+    if (S.mode !== 'play' || S.focusTime > 0 || S.focusMeter < FOCUS_MAX) return;
+    S.focusMeter = 0;
+    S.focusTime = FOCUS_TIME;
+    S.focusBricks = 0;
+    Sound.setFocus(true);
+    Sound.focusOn();
+    Haptics.good();
+    wave(S.paddle.x, PADDLE_Y, 520, world().accent, 0.7);
+    S.hitstop = Math.max(S.hitstop, 0.08);
+  }
+
   function showToast(t) { if (!S.toast) S.toast = t; else S.toastQueue.push(t); }
 
   // Missions, level-ups: celebrate as they happen.
@@ -292,6 +356,7 @@
     S.rank = null;
     S.rankState = 'none';
     S.particles = [];
+    S.focusMeter = 0;
     loadLevel(0);
   }
 
@@ -319,13 +384,16 @@
     S.lostThisLevel = false;
     S.lastLeftCall = 0;
     S.paddle.x = S.paddle.target = W / 2;
+    endFocus(true);
+    S.totalBreakable = Math.max(1, S.bricks.filter((b) => b.type !== 'metal').length);
+    const newWorld = setWorld(S.daily ? S.daily.seed % WORLDS.length : Math.floor(i / 2) % WORLDS.length);
     resetBall();
     if (S.daily) {
       S.banner = { text: 'DAILY CHALLENGE', sub: `${S.daily.mod.name} · ${S.daily.mod.desc.toUpperCase()}`, t: 2.6, max: 2.6 };
     } else {
       checkLevelUnlocks(i + 1);
       Progress.track('level', i + 1);
-      S.banner = { text: `LEVEL ${i + 1}`, sub: (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
+      S.banner = { text: `LEVEL ${i + 1}`, sub: newWorld || i === 0 ? `WORLD: ${world().name}` : (isEndless(i) ? 'ENDLESS · ' : '') + lvl.name.toUpperCase(), t: 2.2, max: 2.2 };
     }
     setMode('play');
   }
@@ -368,6 +436,7 @@
   }
 
   function loseLife() {
+    endFocus(true);
     S.lives--;
     S.lostThisLevel = true;
     S.combo = 0;
@@ -560,7 +629,15 @@
     Progress.track('combo', S.combo);
     const mult = Math.min(8, 1 + Math.floor((S.combo - 1) / 3));
     const base = br.type === 'bomb' ? 25 : br.maxHp * 10;
-    const pts = Math.round(base * mult * pointsMult());
+    const pts = Math.round(base * mult * pointsMult() * (S.focusTime > 0 ? 2 : 1));
+    if (S.focusTime > 0) S.focusBricks++;
+    else if (S.focusMeter < FOCUS_MAX) {
+      S.focusMeter++;
+      if (S.focusMeter === FOCUS_MAX) {
+        showToast({ text: 'FOCUS READY', sub: HAS_KEYBOARD ? 'PRESS F OR TAP FOCUS' : 'TAP FOCUS TO SLOW TIME', t: 2.5, color: world().accent });
+        Sound.good();
+      }
+    }
     S.score += pts;
     const cx = br.x + br.w / 2, cy = br.y + br.h / 2;
     if (mult > 1) addFloater(cx, cy, `+${pts} x${mult}`, '#ffe066', 13);
@@ -738,6 +815,7 @@
     for (const w of S.waves) { w.life -= realDt; w.r += (w.max - w.r) * Math.min(1, realDt * 9); }
     S.waves = S.waves.filter((w) => w.life > 0);
     S.paddleSquash = Math.max(0, S.paddleSquash - realDt * 6);
+    updateBgParts(realDt);
 
     if (S.mode !== 'play') {
       // A guest's 12 hours can run out while the game is open; ask for a new name.
@@ -758,8 +836,24 @@
       return;
     }
 
-    // Berserk countdown
-    if (DIFFS[S.diff].timed && S.clockRunning) {
+    // FOCUS timer
+    if (S.focusTime > 0) {
+      S.focusTime -= realDt;
+      if (S.focusTime <= 0) { S.focusTime = 0.0001; endFocus(false); }
+    }
+    // Intensity: level progress, combo, FOCUS and the Berserk clock build the music and visuals.
+    {
+      const left = S.bricks.reduce((n, br) => n + (br.alive && br.type !== 'metal' ? 1 : 0), 0);
+      const progress = 1 - left / S.totalBreakable;
+      let target = 0.12 + 0.45 * progress + 0.45 * Math.min(1, S.combo / 15);
+      if (DIFFS[S.diff].timed && S.clockRunning && S.timeLeft < 20) target += 0.3;
+      if (S.focusTime > 0) target = 1;
+      S.intensity += (Math.min(1, target) - S.intensity) * Math.min(1, realDt * 1.5);
+      Sound.setIntensity(S.intensity);
+    }
+
+    // Berserk countdown (frozen during FOCUS)
+    if (DIFFS[S.diff].timed && S.clockRunning && !(S.focusTime > 0)) {
       S.timeLeft -= realDt;
       const secs = Math.ceil(S.timeLeft);
       if (secs <= 10 && secs > 0 && secs !== S.lastTick) { S.lastTick = secs; Sound.tick(); }
@@ -816,7 +910,7 @@
     }
     for (const l of S.lasers) {
       const prevY = l.y;
-      l.y -= 820 * dt;
+      l.y -= 820 * dt * (S.focusTime > 0 ? FOCUS_SLOW : 1);
       if (l.y < HUD_H) { l.dead = true; continue; }
       // Check the whole distance travelled this frame, so lasers can't skip bricks.
       let hit = null;
@@ -844,8 +938,9 @@
       const m = Math.hypot(b.vx, b.vy) || 1;
       b.vx = (b.vx / m) * sp;
       b.vy = (b.vy / m) * sp;
-      const steps = Math.max(1, Math.ceil((sp * dt) / (BALL_R * 0.7)));
-      const sdt = dt / steps;
+      const wdt = S.focusTime > 0 ? dt * FOCUS_SLOW : dt;
+      const steps = Math.max(1, Math.ceil((sp * wdt) / (BALL_R * 0.7)));
+      const sdt = wdt / steps;
       for (let i = 0; i < steps; i++) {
         b.x += b.vx * sdt;
         b.y += b.vy * sdt;
@@ -859,7 +954,7 @@
 
     // Capsules
     for (const c of S.capsules) {
-      c.y += c.vy * dt;
+      c.y += c.vy * dt * (S.focusTime > 0 ? FOCUS_SLOW : 1);
       c.t += dt;
       if (c.y + 9 >= PADDLE_Y && c.y - 9 <= PADDLE_Y + PADDLE_H && Math.abs(c.x - p.x) <= p.w / 2 + 18) {
         c.dead = true;
@@ -934,12 +1029,24 @@
   function drawBackground() {
     // Whole screen, in field coordinates (the area beside the field included).
     const x0 = -OX, y0 = -OY, x1 = W + OX, y1 = H + OY;
+    const wd = world();
     const g = ctx.createLinearGradient(0, y0, 0, y1);
-    g.addColorStop(0, '#070818');
-    g.addColorStop(1, '#170a2e');
+    g.addColorStop(0, wd.bg[0]);
+    g.addColorStop(1, wd.bg[1]);
     ctx.fillStyle = g;
     ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-    ctx.strokeStyle = 'rgba(140,90,255,0.08)';
+    // Glow that pulses on the beat, stronger as intensity builds.
+    const playing = S.mode === 'play' || S.mode === 'paused' || S.mode === 'clear';
+    const pulse = playing ? Sound.beatPulse() * (0.25 + 0.75 * S.intensity) : 0;
+    if (pulse > 0.02) {
+      const rg = ctx.createRadialGradient(W / 2, H * 0.4, 20, W / 2, H * 0.4, Math.max(W, H) * 0.8);
+      rg.addColorStop(0, wd.accent + Math.round(pulse * 40).toString(16).padStart(2, '0'));
+      rg.addColorStop(1, wd.accent + '00');
+      ctx.fillStyle = rg;
+      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+    }
+    drawBgParts();
+    ctx.strokeStyle = wd.grid;
     ctx.lineWidth = 1;
     const off = (S.time * 12) % 40;
     ctx.beginPath();
@@ -1222,12 +1329,14 @@
     }
     if (S.combo >= 4) glowText(`COMBO ${S.combo}`, W / 2, HUD_H + 18, 13, '#ffe066', 10);
 
+    drawFocusMeter();
+
     let x = 14;
     for (const k of Object.keys(S.effects)) {
       const p = POWER[k];
       const color = p.good ? '#3dff8a' : '#ff3d6e';
       const w = 96, y = H - 40;
-      if (x + w > W) break;
+      if (x + w > W - 116) break;
       rr(x, y, w, 24, 6);
       ctx.fillStyle = 'rgba(10,10,30,0.8)';
       ctx.fill();
@@ -1239,6 +1348,114 @@
       text(p.name, x + w / 2, y + 12, 9, '#fff');
       x += w + 8;
     }
+  }
+
+  // ---------- World background effects ----------
+  function spawnBgPart(fx, anywhere) {
+    const x0 = -OX, x1 = W + OX, y0 = -OY, y1 = H + OY;
+    const px = rand(x0, x1);
+    const py = anywhere ? rand(y0, y1) : null;
+    if (fx === 'rain') return { x: px, y: py != null ? py : y0 - 40, v: rand(500, 900), len: rand(14, 34), a: rand(0.1, 0.3) };
+    if (fx === 'bubbles') return { x: px, y: py != null ? py : y1 + 10, v: rand(25, 70), r: rand(2, 7), ph: rand(0, 6), a: rand(0.12, 0.3) };
+    if (fx === 'embers') return { x: px, y: py != null ? py : y1 + 10, v: rand(40, 110), r: rand(1, 2.6), ph: rand(0, 6), a: rand(0.25, 0.7) };
+    if (fx === 'stars') return { x: px, y: py != null ? py : y0 - 10, v: rand(60, 240), r: rand(0.6, 1.8), a: rand(0.3, 0.9) };
+    return null;
+  }
+  function updateBgParts(dt) {
+    const wd = world();
+    if (wd.fx === 'aurora') return;
+    const want = lowFx ? 18 : 48;
+    if (S.bgParts.length < want) {
+      const first = S.bgParts.length === 0;
+      for (let i = S.bgParts.length; i < want; i++) { const p = spawnBgPart(wd.fx, first); if (p) S.bgParts.push(p); }
+    }
+    const speed = (1 + S.intensity * 2.2) * (S.focusTime > 0 ? 0.3 : 1);
+    const y0 = -OY - 50, y1 = H + OY + 50;
+    for (const p of S.bgParts) {
+      if (wd.fx === 'rain' || wd.fx === 'stars') p.y += p.v * speed * dt;
+      else { p.y -= p.v * speed * dt; p.ph += dt * 2; p.x += Math.sin(p.ph) * 12 * dt; }
+      if (p.y > y1 || p.y < y0) Object.assign(p, spawnBgPart(wd.fx, false));
+    }
+  }
+  function drawBgParts() {
+    const wd = world();
+    const boost = 0.6 + S.intensity * 0.8;
+    if (wd.fx === 'aurora') {
+      // Slow ribbons of light across the sky.
+      ctx.globalCompositeOperation = 'lighter';
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath();
+        const base = H * (0.18 + k * 0.12);
+        for (let x = -OX; x <= W + OX; x += 20) {
+          const y = base + Math.sin(x * 0.008 + S.time * (0.4 + k * 0.15)) * 40 + Math.sin(x * 0.02 + S.time) * 10;
+          if (x === -OX) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = ['#3dff8a', '#29f0ff', '#9b5cff'][k];
+        ctx.globalAlpha = 0.07 * boost;
+        ctx.lineWidth = 26 - k * 6;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      return;
+    }
+    ctx.fillStyle = wd.accent;
+    ctx.strokeStyle = wd.accent;
+    for (const p of S.bgParts) {
+      ctx.globalAlpha = Math.min(1, p.a * boost);
+      if (wd.fx === 'rain') {
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y - p.len * (1 + S.intensity)); ctx.stroke();
+      } else if (wd.fx === 'bubbles') {
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
+      } else if (wd.fx === 'embers') {
+        ctx.globalAlpha = Math.min(1, p.a * boost * (0.6 + 0.4 * Math.sin(p.ph * 3)));
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      } else if (wd.fx === 'stars') {
+        const streak = 2 + S.intensity * 18;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(p.x - p.r / 2, p.y - streak, p.r, streak);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // FOCUS meter / button (bottom right) and the focus screen tint.
+  function drawFocusMeter() {
+    if (S.mode !== 'play' && S.mode !== 'paused') return;
+    const wd = world();
+    const w = 100, h = 34, x = W - w - 12, y = H - 46;
+    const full = S.focusMeter >= FOCUS_MAX && !(S.focusTime > 0);
+    if (S.focusTime > 0) {
+      // Full-screen tint while focused
+      ctx.fillStyle = 'rgba(4,3,15,0.22)';
+      ctx.fillRect(-OX, 0, VW, H);
+      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8);
+      vg.addColorStop(0, wd.accent + '00');
+      vg.addColorStop(1, wd.accent + '44');
+      ctx.fillStyle = vg;
+      ctx.fillRect(-OX, 0, VW, H);
+    }
+    rr(x, y, w, h, 10);
+    ctx.fillStyle = full ? wd.accent : 'rgba(10,10,30,0.75)';
+    ctx.shadowColor = wd.accent;
+    ctx.shadowBlur = full ? 14 + 10 * Math.sin(S.time * 6) : 0;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = wd.accent;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (!full) {
+      const frac = S.focusTime > 0 ? S.focusTime / FOCUS_TIME : S.focusMeter / FOCUS_MAX;
+      if (frac > 0) {
+        rr(x + 3, y + 3, Math.max(6, (w - 6) * frac), h - 6, 7);
+        ctx.fillStyle = wd.accent + (S.focusTime > 0 ? 'aa' : '55');
+        ctx.fill();
+      }
+    }
+    text(S.focusTime > 0 ? 'FOCUS ×2' : 'FOCUS', x + w / 2, y + h / 2, 12, full ? '#050614' : '#ffffff', 'center', 700);
+    if (full) S.buttons.push({ x: x - 6, y: y - 10, w: w + 12, h: h + 16, action: 'focus' });
   }
 
   function drawToast() {
@@ -1646,6 +1863,7 @@
     if (action.startsWith('start:')) { const d = action.slice(6); requireIdentity(() => startGame(d)); return true; }
     switch (action) {
       case 'pause': setMode('paused'); return true;
+      case 'focus': activateFocus(); return true;
       case 'resume': setMode('play'); return true;
       case 'menu': setMode('menu'); S.particles = []; return true;
       case 'next': loadLevel(S.level + 1); return true;
@@ -1691,16 +1909,22 @@
     usePointer = true;
     if (e.pointerType === 'mouse') S.hoverAction = buttonAt(p);
   });
+  let downAction = null;
   canvas.addEventListener('pointerdown', (e) => {
     Sound.unlock();
     const p = toLogical(e);
     pointerX = p.x;
     usePointer = true;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    downAction = buttonAt(p);
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = toLogical(e);
-    if (doAction(buttonAt(p))) return;
+    const action = buttonAt(p);
+    // In-game buttons (FOCUS, pause) only fire when the tap also started on them,
+    // so finishing a paddle drag over a button never presses it by accident.
+    if (S.mode === 'play' && action !== downAction) { launch(); return; }
+    if (doAction(action)) return;
     if (S.mode === 'play') launch();
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1741,6 +1965,7 @@
       else if (S.mode === 'paused') setMode('play');
     }
     else if (k === 'm' || k === 'M') Sound.toggleMute();
+    else if ((k === 'f' || k === 'F') && S.mode === 'play') activateFocus();
     else if (S.mode === 'menu') {
       if (k === 'ArrowUp' || k === 'w' || k === 'W') { S.menuSel = (S.menuSel + 3) % 4; S.hoverAction = null; e.preventDefault(); }
       else if (k === 'ArrowDown' || k === 's' || k === 'S') { S.menuSel = (S.menuSel + 1) % 4; S.hoverAction = null; e.preventDefault(); }
@@ -1791,5 +2016,5 @@
   Sound.music('menu'); // starts after the first tap (browsers need a gesture for audio)
 
   // Hook for automated testing.
-  window.__brickSmasher = { state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx, maybeDrop };
+  window.__brickSmasher = { activateFocus, WORLDS, state: S, startGame, loadLevel, applyPower, generateLevel, isLowFx: () => lowFx, maybeDrop };
 })();

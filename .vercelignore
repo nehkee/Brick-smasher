@@ -2,3 +2,7 @@
 docs/
 supabase/
 README.md
+
+# Cloudflare-only files
+build.sh
+_headers
