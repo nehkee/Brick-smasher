@@ -14,6 +14,17 @@ Brick Smasher is a **static site** (HTML, CSS, JavaScript files, no server of it
 
 **Recommendation:** keep **Vercel** as the main link for now, and add **Cloudflare Pages** as a second deployment. Cloudflare's unlimited free bandwidth is the safer home if the game goes viral, and once a commercial version launches (in-app purchases), Vercel's Hobby terms would require a paid plan while Cloudflare's free plan allows commercial use.
 
+## Deploying to Cloudflare Workers (the current Cloudflare flow)
+
+The repo includes `wrangler.jsonc`, which serves the built `dist/` folder as static files. In Cloudflare: **Workers & Pages → Create → Import a repository → nehkee/Brick-smasher**, then:
+- **Project name:** `brick-smasher`
+- **Build command:** `bash build.sh`
+- **Deploy command:** `npx wrangler deploy` (default)
+- **Preview command:** `npx wrangler preview` (default)
+- **Path:** `/` · **API token:** let Cloudflare create it automatically · **Variables:** none
+
+The address becomes `https://brick-smasher.<your-subdomain>.workers.dev`.
+
 ## Deploying to Cloudflare Pages (owner steps, ~3 minutes, free)
 
 The repo is already prepared: `build.sh` builds the site into `dist/` (game files only; `docs/` and `supabase/` are never published), and `_headers` sets the same security headers as Vercel.
