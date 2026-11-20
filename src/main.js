@@ -1040,7 +1040,7 @@
     const pulse = playing ? Sound.beatPulse() * (0.25 + 0.75 * S.intensity) : 0;
     if (pulse > 0.02) {
       const rg = ctx.createRadialGradient(W / 2, H * 0.4, 20, W / 2, H * 0.4, Math.max(W, H) * 0.8);
-      rg.addColorStop(0, wd.accent + Math.round(pulse * 40).toString(16).padStart(2, '0'));
+      rg.addColorStop(0, wd.accent + Math.round(pulse * 70).toString(16).padStart(2, '0'));
       rg.addColorStop(1, wd.accent + '00');
       ctx.fillStyle = rg;
       ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
@@ -1355,16 +1355,16 @@
     const x0 = -OX, x1 = W + OX, y0 = -OY, y1 = H + OY;
     const px = rand(x0, x1);
     const py = anywhere ? rand(y0, y1) : null;
-    if (fx === 'rain') return { x: px, y: py != null ? py : y0 - 40, v: rand(500, 900), len: rand(14, 34), a: rand(0.1, 0.3) };
-    if (fx === 'bubbles') return { x: px, y: py != null ? py : y1 + 10, v: rand(25, 70), r: rand(2, 7), ph: rand(0, 6), a: rand(0.12, 0.3) };
-    if (fx === 'embers') return { x: px, y: py != null ? py : y1 + 10, v: rand(40, 110), r: rand(1, 2.6), ph: rand(0, 6), a: rand(0.25, 0.7) };
-    if (fx === 'stars') return { x: px, y: py != null ? py : y0 - 10, v: rand(60, 240), r: rand(0.6, 1.8), a: rand(0.3, 0.9) };
+    if (fx === 'rain') return { x: px, y: py != null ? py : y0 - 40, v: rand(500, 900), len: rand(22, 48), a: rand(0.45, 0.8) };
+    if (fx === 'bubbles') return { x: px, y: py != null ? py : y1 + 10, v: rand(25, 70), r: rand(4, 11), ph: rand(0, 6), a: rand(0.55, 0.9) };
+    if (fx === 'embers') return { x: px, y: py != null ? py : y1 + 10, v: rand(40, 110), r: rand(2.5, 5), ph: rand(0, 6), a: rand(0.8, 1) };
+    if (fx === 'stars') return { x: px, y: py != null ? py : y0 - 10, v: rand(60, 240), r: rand(1.4, 3), a: rand(0.7, 1) };
     return null;
   }
   function updateBgParts(dt) {
     const wd = world();
     if (wd.fx === 'aurora') return;
-    const want = lowFx ? 18 : 48;
+    const want = lowFx ? 24 : 80;
     if (S.bgParts.length < want) {
       const first = S.bgParts.length === 0;
       for (let i = S.bgParts.length; i < want; i++) { const p = spawnBgPart(wd.fx, first); if (p) S.bgParts.push(p); }
@@ -1379,7 +1379,7 @@
   }
   function drawBgParts() {
     const wd = world();
-    const boost = 0.6 + S.intensity * 0.8;
+    const boost = 1 + S.intensity * 0.6;
     if (wd.fx === 'aurora') {
       // Slow ribbons of light across the sky.
       ctx.globalCompositeOperation = 'lighter';
@@ -1391,7 +1391,7 @@
           if (x === -OX) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.strokeStyle = ['#3dff8a', '#29f0ff', '#9b5cff'][k];
-        ctx.globalAlpha = 0.07 * boost;
+        ctx.globalAlpha = 0.16 * boost;
         ctx.lineWidth = 26 - k * 6;
         ctx.stroke();
       }
@@ -1404,18 +1404,20 @@
     for (const p of S.bgParts) {
       ctx.globalAlpha = Math.min(1, p.a * boost);
       if (wd.fx === 'rain') {
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y - p.len * (1 + S.intensity)); ctx.stroke();
       } else if (wd.fx === 'bubbles') {
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke();
       } else if (wd.fx === 'embers') {
-        ctx.globalAlpha = Math.min(1, p.a * boost * (0.6 + 0.4 * Math.sin(p.ph * 3)));
+        ctx.globalAlpha = Math.min(1, p.a * boost * (0.75 + 0.25 * Math.sin(p.ph * 3)));
+        ctx.shadowColor = wd.accent; ctx.shadowBlur = 10;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
       } else if (wd.fx === 'stars') {
         const streak = 2 + S.intensity * 18;
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(p.x - p.r / 2, p.y - streak, p.r, streak);
+        ctx.fillRect(p.x - p.r / 2, p.y - streak, p.r + 0.5, streak);
       }
     }
     ctx.globalAlpha = 1;
